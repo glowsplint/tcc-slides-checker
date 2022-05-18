@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -10,8 +11,8 @@ def order_of_service_with_declaration():
     pass
 
 
-@pytest.fixture
-def order_of_service_without_declaration() -> tuple[str, int, str]:
+# @pytest.fixture
+def order_of_service_without_declaration() -> list[tuple[str, int, str]]:
     """
     Order of service with elements at position:
     1. Item
@@ -23,7 +24,7 @@ def order_of_service_without_declaration() -> tuple[str, int, str]:
     """
     return [
         ("Opening Words", 1, ""),
-        ("Opening Song", 4, "Behold Our God"),
+        ("Opening Song", 4, "God Omniscient, God All Knowing"),
         ("Family Confession", 2, "#11 Confession of Sin (Slide 17 & 18)"),
         (
             "Family Prayer",
@@ -31,13 +32,39 @@ def order_of_service_without_declaration() -> tuple[str, int, str]:
             "Refer to Prayer Points Tab in this document (Usually updated by Thu)",
         ),
         ("Family Business", 5, "Refer to Family Business Tab"),
-        ("Bible Reading", 4, "Daniel 3"),
+        ("Bible Reading", 4, "Daniel 2:1-24 & 31-47"),
         ("Sermon", 30, "Preacher: Denesh"),
-        ("Closing Song", 4, "See Him Coming"),
+        ("Closing Song", 4, "Crown Him with Many Crowns"),
         ("Closing Words", 1, ""),
         ("Discuss in groups", 5, ""),
         ("Dismissal", 0, ""),
     ]
+
+
+# @pytest.fixture
+def clean_order_of_service_without_declaration() -> list[tuple[str, str]]:
+    """
+    Order of service with elements at position:
+    1. Item
+    2. Things to note
+
+    Returns:
+        tuple[str, str]
+    """
+    return [
+        (section_mapping().get(item[0], item[0]), item[2])
+        for item in order_of_service_without_declaration()
+        if not ("Opening Words" in item[0] or "Dismissal" in item[0])
+    ]
+
+
+# @pytest.fixture
+def section_mapping() -> dict[str, str]:
+    return {
+        "Bible Reading": "Hearing God\u2018s Word Read",
+        "Sermon": "Hearing God\u2018s Word Proclaimed",
+        "Discuss in groups": "Sermon Discussion",
+    }
 
 
 @pytest.fixture
@@ -45,8 +72,14 @@ def sermon_discussion_qns():
     return
 
 
+# @pytest.fixture
+def all_slides() -> list[Slide]:
+    return get_all_slides(pptx=pptx())
+
+
 def pptx() -> Presentation:
     PATH_TO_PRESENTATION = Path("../input/01.05 (9am) service slides.pptx")
+    # PATH_TO_PRESENTATION = Path("input/01.05 (9am) service slides.pptx")
     return Presentation(PATH_TO_PRESENTATION)
 
 
@@ -75,7 +108,8 @@ def get_slide_subset_with_text(all_slides: list[Slide], text: str) -> list[Slide
     return section_headers
 
 
-def get_section_headers(all_slides: list[Slide]) -> list[Slide]:
+# @pytest.fixture
+def section_headers(all_slides: list[Slide]) -> list[Slide]:
     """
     Section header slides are slides that contain the text "Today's order of service".
     This includes the Welcome slide, and all other item slides (i.e. Family Confession,
@@ -90,7 +124,42 @@ def get_section_headers(all_slides: list[Slide]) -> list[Slide]:
     return get_slide_subset_with_text(all_slides, text="order of service")
 
 
-def test_section_headers_have_correct_order(order_of_service_with_declaration):
+def get_text_from_slides(slides: list[Slide]) -> list[str]:
+    return [shape.text_frame.text for slide in slides for shape in slide.shapes]
+
+
+def test_existence_of_section_headers(section_headers: list[Slide]):
+    assert len(section_headers) > 0
+
+
+def split_and_strip(text: str) -> list[str]:
+    split_text = re.split("\n+", text)
+    return [
+        item.strip()
+        for item in split_text
+        if len(item) and "order of service" not in item
+    ]
+
+
+def get_order_of_service_in_slide(text: str) -> list[tuple[str, str]]:
+    return [item for item in text if "order of service" in item]
+
+
+def get_reformatted_text(text: str) -> list[tuple[str, str]]:
+    return [split_and_strip(item) for item in text]
+
+
+def get_final():
+    section_header_slides = section_headers(all_slides())
+    section_header_text = get_text_from_slides(section_header_slides)
+    orders_of_service = get_order_of_service_in_slide(section_header_text)
+    return [split_and_strip(item) for item in orders_of_service]
+
+
+def test_section_headers_have_correct_order(
+    order_of_service_without_declaration: tuple[str, int, str],
+    section_headers: list[Slide],
+):
     """
     Test all section headers have the correct order of service by checking that the
     order of service provided in each section header slide matches the provided order
@@ -105,7 +174,9 @@ def test_section_headers_have_correct_order(order_of_service_with_declaration):
     pass
 
 
-def test_family_confession_content_matches_number(order_of_service_with_declaration):
+def test_family_confession_content_matches_number(
+    order_of_service_without_declaration: tuple[str, int, str]
+):
     """
     Test family confession has the correct contents by checking that the words on the
     slide match the required content (usually a #number) specified in the order of
@@ -119,7 +190,9 @@ def test_family_confession_content_matches_number(order_of_service_with_declarat
     pass
 
 
-def test_family_declaration_content_matches_number(order_of_service_with_declaration):
+def test_family_declaration_content_matches_number(
+    order_of_service_without_declaration: tuple[str, int, str],
+):
     """
     Test that family declaration (if present) has the correct contents by checking that
     the words on the slide match the required content (usually a #number) specified in
@@ -130,14 +203,12 @@ def test_family_declaration_content_matches_number(order_of_service_with_declara
     pass
 
 
-def test_all_lyric_slides_have_no_title(order_of_service_with_declaration):
+def test_all_lyric_slides_have_no_title(
+    order_of_service_without_declaration: tuple[str, int, str]
+):
     """
     Test all lyric slides do not contain a title.
     """
     # 1. Identify the lyric slides
     # 2.
     pass
-
-
-if __name__ == "__main__":
-    all_slides = get_all_slides(pptx=pptx())
