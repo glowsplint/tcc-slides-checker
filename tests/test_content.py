@@ -179,11 +179,15 @@ def test_section_headers_have_correct_order(
     # 1. Identify the section header slides
     # 2. Check that there is a text box on the page that contains the order of service
     # 3. Check that the order of service is correct
+    # TODO: Tell me which slide number and how it is incorrect
+    # TODO: Add front-end and back-end and migrate from pytest to functions
     for slide in clean_order_of_service_in_slides:
         index = 0
         for entry in slide:
             if (
-                re.match("(Opening Song|Closing Song|Hearing God\u2018s Word Read)", entry)
+                re.match(
+                    "(Opening Song|Closing Song|Hearing God\u2018s Word Read)", entry
+                )
                 is not None
             ):
                 title, comments = clean_order_of_service_without_declaration[index]
@@ -230,7 +234,9 @@ def test_all_lyric_slides_have_no_title(
 ):
     """
     Test all lyric slides do not contain a title.
+
+    Lyric slides are slides for the opening and closing song.
     """
-    # 1. Identify the lyric slides
-    # 2.
+    # 1. Identify the lyric slides for the opening and closing song
+    # 2. Check that the title is not present (i.e. none of the text boxes contain the song title exclusively)
     pass
