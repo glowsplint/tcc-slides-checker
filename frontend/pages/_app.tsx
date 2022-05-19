@@ -1,14 +1,15 @@
+import { SettingsProvider } from '../contexts/settings';
 import '../styles/globals.css';
-import 'normalize.css/normalize.css';
-import '@blueprintjs/icons/lib/css/blueprint-icons.css';
-import '@blueprintjs/core/lib/css/blueprint.css';
-import '@blueprintjs/table/lib/css/table.css';
-import '@blueprintjs/datetime/lib/css/blueprint-datetime.css';
+import 'antd/dist/antd.css';
 
 import type { AppProps } from "next/app";
 
 function MyApp({ Component, pageProps }: AppProps) {
-  return <Component {...pageProps} />;
+  return (
+    <SettingsProvider>
+      <Component {...pageProps} />
+    </SettingsProvider>
+  );
 }
 
 export default MyApp;
