@@ -1,5 +1,10 @@
 import { SetStateAction } from 'react';
+import { UploadFileStatus } from 'antd/lib/upload/interface';
 
+interface UploadedFile {
+  file: File;
+  name: string;
+}
 interface Settings {
   isLoading: boolean;
   selectedDate?: string;
@@ -8,4 +13,4 @@ interface Settings {
 
 type SetSettings = React.Dispatch<SetStateAction<Settings>>;
 
-export type { Settings, SetSettings };
+export type { Settings, SetSettings, UploadedFile };
