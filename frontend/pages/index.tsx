@@ -5,8 +5,9 @@ import styles from '../styles/Home.module.css';
 import { InboxOutlined, UploadOutlined } from '@ant-design/icons';
 import { RcFile } from 'antd/lib/upload';
 import { SetSettings, Settings } from '../types';
-import { SettingsProvider, useSettings } from '../contexts/settings';
+import { useSettings } from '../contexts/settings';
 import {
+  Alert,
   Button,
   DatePicker,
   Input,
@@ -75,8 +76,8 @@ const makePOSTRequest = async ({
 };
 
 const setIsLoading = (setSettings: SetSettings, bool: boolean) => {
-  setSettings((prevSettings) => {
-    return { ...prevSettings, isLoading: bool };
+  setSettings((previous) => {
+    return { ...previous, isLoading: bool };
   });
 };
 
@@ -209,17 +210,22 @@ const props = (setSettings: SetSettings) => {
 };
 
 const FileUploadInput = () => {
-  const { setSettings } = useSettings();
+  const { settings, setSettings } = useSettings();
   return (
-    <Dragger {...props(setSettings)}>
-      <p className="ant-upload-drag-icon">
-        <InboxOutlined />
-      </p>
-      <p className="ant-upload-text">
-        Click or drag file here to upload Service Slides.
-      </p>
-      <p className="ant-upload-hint">File must have a .pptx extension.</p>
-    </Dragger>
+    <>
+      <Dragger {...props(setSettings)}>
+        <p className="ant-upload-drag-icon">
+          <InboxOutlined />
+        </p>
+        <p className="ant-upload-text">
+          Click or drag file here to upload Service Slides.
+        </p>
+        <p className="ant-upload-hint">File must have a .pptx extension.</p>
+      </Dragger>
+      {settings.files.error ? (
+        <Alert message="You must upload a file!" type="error" />
+      ) : null}
+    </>
   );
 };
 
@@ -243,11 +249,16 @@ const UploadButton = () => {
     }
     setIsLoading(setSettings, true);
     const response = getResponse(settings);
-    console.log(response);
+    console.log((await response).json());
     setIsLoading(setSettings, false);
   };
   return (
-    <Button type="primary" icon={<UploadOutlined />} onClick={onClickUpload}>
+    <Button
+      type="primary"
+      icon={<UploadOutlined />}
+      onClick={onClickUpload}
+      loading={settings.isLoading}
+    >
       Upload
     </Button>
   );

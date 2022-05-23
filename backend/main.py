@@ -1,12 +1,13 @@
 import os
+import time
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.file_io import clean_up_outputs, get_output_path
+from backend.file_io import get_output_path
 from backend.metadata import metadata
 
 DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE")
@@ -53,7 +54,6 @@ async def root_page() -> FileResponse:
 
 @app.post("/api/upload/")
 async def upload_handler(
-    background_tasks: BackgroundTasks,
     selected_date: str = Form(...),
     req_order_of_service: str = Form(...),
     sermon_discussion_qns: str = Form(...),
@@ -66,4 +66,5 @@ async def upload_handler(
     Returns:
         FileResponse: Excel spreadsheet output
     """
+    time.sleep(5)
     return {"message": "morp"}
