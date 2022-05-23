@@ -4,7 +4,7 @@ import React from 'react';
 import styles from '../styles/Home.module.css';
 import { InboxOutlined, UploadOutlined } from '@ant-design/icons';
 import { RcFile } from 'antd/lib/upload';
-import { SetSettings, UploadedFile } from '../types';
+import { SetSettings, Settings } from '../types';
 import { useSettings } from '../contexts/settings';
 import {
   Button,
@@ -25,19 +25,17 @@ const { Dragger } = Upload;
 /* Constants */
 const DEVELOPMENT_MODE = process.env.NEXT_PUBLIC_DEVELOPMENT_MODE === "True";
 
-const getFormData = (
-  fileList: UploadedFile[],
-  isGenerateFinalValues: boolean
-): FormData => {
+const getFormData = (settings: Settings): FormData => {
   /**
    * Creates a new FormData object and adds the File objects and parameters into it
-   * If you need to pass data to the backend, you should add it here.
    */
   let formData = new FormData();
-  fileList.forEach((uploadedFile) =>
-    formData.append("files", uploadedFile.file, uploadedFile.file.name)
+  settings.files.forEach((file) => formData.append("files", file, file.name));
+  formData.append("selectedDate", settings.selectedDate?.toString() as string);
+  formData.append(
+    "sermonDiscussionQuestions",
+    settings.sermonDiscussionQuestions?.toString() as string
   );
-  formData.append("is_generate_final_values", isGenerateFinalValues.toString());
   return formData;
 };
 
@@ -65,6 +63,28 @@ const makePOSTRequest = async ({
     method: "POST",
     body: formData,
   });
+};
+
+const setIsLoading = (setSettings: SetSettings, bool: boolean) => {
+  setSettings((prevSettings) => {
+    return { ...prevSettings, isLoading: bool };
+  });
+};
+
+const showInvalidUploadError = () => {
+  message.error("You must upload files below!");
+};
+
+const getResponse = (settings: Settings) => {
+  /**
+   * Sends POST request with input Excel files
+   */
+  const formData = getFormData(settings);
+  const response = makePOSTRequest({
+    formData,
+    backendPath: "/api/upload/",
+  });
+  return response;
 };
 
 const disabledDate = (date: moment.MomentInput) => {
@@ -95,11 +115,12 @@ const OrderOfServiceInput = () => {
   // TODO: Replace this with a table element
   const { setSettings } = useSettings();
 
-  const onPaste = (event: React.ClipboardEvent) => {
-    event.clipboardData.items[0].getAsString((contents) => {
-      setSettings((previous) => {
-        return { ...previous, orderOfService: contents };
-      });
+  const onChange: React.ChangeEventHandler<HTMLTextAreaElement> = (event) => {
+    setSettings((previous) => {
+      return {
+        ...previous,
+        orderOfService: event.target.value,
+      };
     });
   };
 
@@ -107,7 +128,7 @@ const OrderOfServiceInput = () => {
     <TextArea
       placeholder="Paste order of service here from the Rosters 2022 (Staff & Admins) sheet."
       autoSize={{ minRows: 2 }}
-      onPaste={onPaste}
+      onChange={onChange}
     />
   );
 };
@@ -137,7 +158,7 @@ const props = (setSettings: SetSettings) => {
     name: "file",
     maxCount: 1,
     multiple: true,
-    beforeUpload: (file: File) => {
+    beforeUpload: (file: File, fileList: RcFile[]) => {
       const isPPTX =
         file.type ===
         "application/vnd.openxmlformats-officedocument.presentationml.presentation";
@@ -145,7 +166,7 @@ const props = (setSettings: SetSettings) => {
         message.error(`${file.name} is not a .pptx file`);
       }
       setSettings((previous) => {
-        return { ...previous, file };
+        return { ...previous, files: [file] };
       });
       // Prevent upload
       return false;
@@ -169,8 +190,29 @@ const FileUploadInput = () => {
 };
 
 const UploadButton = () => {
+  const { settings, setSettings } = useSettings();
+  const onClickUpload: React.MouseEventHandler = async () => {
+    /**
+     * Sends the POST request, extracts the output files from the response,
+     * and sets the output files into context
+     */
+    const isInvalidUpload =
+      settings.files?.length === 0 ||
+      settings.selectedDate ||
+      settings.orderOfService?.length === 0 ||
+      settings.sermonDiscussionQuestions?.length === 0;
+
+    if (isInvalidUpload) {
+      showInvalidUploadError();
+      return;
+    }
+    setIsLoading(setSettings, true);
+    const response = getResponse(settings);
+    console.log(response);
+    setIsLoading(setSettings, false);
+  };
   return (
-    <Button type="primary" icon={<UploadOutlined />}>
+    <Button type="primary" icon={<UploadOutlined />} onClick={onClickUpload}>
       Upload
     </Button>
   );
