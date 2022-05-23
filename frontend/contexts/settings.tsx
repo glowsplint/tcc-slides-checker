@@ -2,11 +2,20 @@ import React, { useState } from 'react';
 import { SetSettings, Settings } from '../types';
 
 const slidesSettings: Settings = {
-  files: [],
+  files: { value: [], error: false },
   isLoading: false,
-  orderOfService: "",
-  selectedDate: "",
-  sermonDiscussionQuestions: "",
+  orderOfService: {
+    value: "",
+    error: false,
+  },
+  selectedDate: {
+    value: "",
+    error: false,
+  },
+  sermonDiscussionQns: {
+    value: "",
+    error: false,
+  },
 };
 
 const SettingsContext = React.createContext<{

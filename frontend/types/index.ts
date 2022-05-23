@@ -1,11 +1,15 @@
 import { SetStateAction } from 'react';
 
+interface ValueAndError<T> {
+  value: T;
+  error: boolean;
+}
 interface Settings {
-  files: File[];
+  files: ValueAndError<File[]>;
   isLoading: boolean;
-  orderOfService: string;
-  selectedDate: string;
-  sermonDiscussionQuestions: string;
+  orderOfService: ValueAndError<string>;
+  selectedDate: ValueAndError<string>;
+  sermonDiscussionQns: ValueAndError<string>;
 }
 
 type SetSettings = React.Dispatch<SetStateAction<Settings>>;

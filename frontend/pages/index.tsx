@@ -5,7 +5,7 @@ import styles from '../styles/Home.module.css';
 import { InboxOutlined, UploadOutlined } from '@ant-design/icons';
 import { RcFile } from 'antd/lib/upload';
 import { SetSettings, Settings } from '../types';
-import { useSettings } from '../contexts/settings';
+import { SettingsProvider, useSettings } from '../contexts/settings';
 import {
   Button,
   DatePicker,
@@ -30,11 +30,20 @@ const getFormData = (settings: Settings): FormData => {
    * Creates a new FormData object and adds the File objects and parameters into it
    */
   let formData = new FormData();
-  settings.files.forEach((file) => formData.append("files", file, file.name));
-  formData.append("selectedDate", settings.selectedDate?.toString() as string);
+  settings.files.value.forEach((file) =>
+    formData.append("files", file, file.name)
+  );
   formData.append(
-    "sermonDiscussionQuestions",
-    settings.sermonDiscussionQuestions?.toString() as string
+    "selected_date",
+    settings.selectedDate.value?.toString() as string
+  );
+  formData.append(
+    "req_order_of_service",
+    settings.orderOfService.value?.toString() as string
+  );
+  formData.append(
+    "sermon_discussion_qns",
+    settings.sermonDiscussionQns.value?.toString() as string
   );
   return formData;
 };
@@ -72,7 +81,30 @@ const setIsLoading = (setSettings: SetSettings, bool: boolean) => {
 };
 
 const showInvalidUploadError = () => {
-  message.error("You must upload files below!");
+  message.error("You must upload files below and fill in all inputs!");
+};
+
+const showInputErrors = (setSettings: SetSettings) => {
+  setSettings((previous) => {
+    const isFilesError = previous.files.value.length === 0;
+    const isSelectedDateError = previous.selectedDate.value.length === 0;
+    const isOrderOfServiceError = previous.orderOfService.value.length === 0;
+    const isSermonDiscussionQnsError =
+      previous.sermonDiscussionQns.value.length === 0;
+    return {
+      ...previous,
+      files: { ...previous.files, error: isFilesError },
+      selectedDate: { ...previous.selectedDate, error: isSelectedDateError },
+      orderOfService: {
+        ...previous.orderOfService,
+        error: isOrderOfServiceError,
+      },
+      sermonDiscussionQns: {
+        ...previous.sermonDiscussionQns,
+        error: isSermonDiscussionQnsError,
+      },
+    };
+  });
 };
 
 const getResponse = (settings: Settings) => {
@@ -93,11 +125,11 @@ const disabledDate = (date: moment.MomentInput) => {
 };
 
 const DateSelector = () => {
-  const { setSettings } = useSettings();
+  const { settings, setSettings } = useSettings();
 
   const onChange = (date: moment.MomentInput, dateString: string) => {
     setSettings((previous) => {
-      return { ...previous, selectedDate: dateString };
+      return { ...previous, selectedDate: { value: dateString, error: false } };
     });
   };
 
@@ -106,6 +138,7 @@ const DateSelector = () => {
       disabledDate={disabledDate}
       placeholder="Select date of Sunday service."
       onChange={onChange}
+      status={settings.selectedDate.error ? "error" : ""}
     />
   );
 };
@@ -113,13 +146,13 @@ const DateSelector = () => {
 /* Components */
 const OrderOfServiceInput = () => {
   // TODO: Replace this with a table element
-  const { setSettings } = useSettings();
+  const { settings, setSettings } = useSettings();
 
   const onChange: React.ChangeEventHandler<HTMLTextAreaElement> = (event) => {
     setSettings((previous) => {
       return {
         ...previous,
-        orderOfService: event.target.value,
+        orderOfService: { value: event.target.value, error: false },
       };
     });
   };
@@ -129,18 +162,22 @@ const OrderOfServiceInput = () => {
       placeholder="Paste order of service here from the Rosters 2022 (Staff & Admins) sheet."
       autoSize={{ minRows: 2 }}
       onChange={onChange}
+      status={settings.orderOfService.error ? "error" : ""}
     />
   );
 };
 
-const SermonDiscussionQuestionsInput = () => {
-  const { setSettings } = useSettings();
+const SermonDiscussionQnsInput = () => {
+  const { settings, setSettings } = useSettings();
 
   const onChange = (event: React.ChangeEvent) => {
     setSettings((previous) => {
       return {
         ...previous,
-        sermonDiscussionQuestions: (event.target as HTMLTextAreaElement).value,
+        sermonDiscussionQns: {
+          value: (event.target as HTMLTextAreaElement).value,
+          error: false,
+        },
       };
     });
   };
@@ -149,6 +186,7 @@ const SermonDiscussionQuestionsInput = () => {
       placeholder="Paste sermon discussion questions here."
       autoSize
       onChange={onChange}
+      status={settings.sermonDiscussionQns.error ? "error" : ""}
     />
   );
 };
@@ -158,15 +196,11 @@ const props = (setSettings: SetSettings) => {
     name: "file",
     maxCount: 1,
     multiple: true,
+    accept:
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     beforeUpload: (file: File, fileList: RcFile[]) => {
-      const isPPTX =
-        file.type ===
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation";
-      if (!isPPTX) {
-        message.error(`${file.name} is not a .pptx file`);
-      }
       setSettings((previous) => {
-        return { ...previous, files: [file] };
+        return { ...previous, files: { value: [file], error: false } };
       });
       // Prevent upload
       return false;
@@ -197,13 +231,14 @@ const UploadButton = () => {
      * and sets the output files into context
      */
     const isInvalidUpload =
-      settings.files?.length === 0 ||
-      settings.selectedDate ||
-      settings.orderOfService?.length === 0 ||
-      settings.sermonDiscussionQuestions?.length === 0;
+      settings.files.value.length === 0 ||
+      settings.selectedDate.value.length === 0 ||
+      settings.orderOfService.value.length === 0 ||
+      settings.sermonDiscussionQns.value.length === 0;
 
     if (isInvalidUpload) {
       showInvalidUploadError();
+      showInputErrors(setSettings);
       return;
     }
     setIsLoading(setSettings, true);
@@ -235,7 +270,7 @@ const Home: NextPage = () => {
           <FileUploadInput />
           <DateSelector />
           <OrderOfServiceInput />
-          <SermonDiscussionQuestionsInput />
+          <SermonDiscussionQnsInput />
           <UploadButton />
         </Space>
       </main>

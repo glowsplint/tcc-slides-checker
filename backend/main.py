@@ -54,9 +54,9 @@ async def root_page() -> FileResponse:
 @app.post("/api/upload/")
 async def upload_handler(
     background_tasks: BackgroundTasks,
-    selected_date: bool = Form(...),
-    required_order_of_service: bool = Form(...),
-    sermon_discussion_questions: bool = Form(...),
+    selected_date: str = Form(...),
+    req_order_of_service: str = Form(...),
+    sermon_discussion_qns: str = Form(...),
     files: list[UploadFile] = File(...),
 ) -> FileResponse:
     """
