@@ -19,7 +19,7 @@ import {
 
 import type { NextPage } from "next";
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Dragger } = Upload;
 
@@ -277,6 +277,7 @@ const Home: NextPage = () => {
         <Space direction="vertical">
           <Space className={styles.title}>
             <Title>TCC Slides Checker</Title>
+            <Text type="secondary">{process.env.NEXT_PUBLIC_APP_VERSION}</Text>
           </Space>
           <FileUploadInput />
           <DateSelector />
