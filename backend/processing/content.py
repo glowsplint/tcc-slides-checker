@@ -219,15 +219,6 @@ def check_section_headers_have_correct_order(
                 continue
             index += 1
 
-        is_pointer_match_order_length = index == len(req_order_of_service)
-        if not is_pointer_match_order_length:
-            item: Result = {
-                "title": "Check all required order of service items are present",
-                "comments": f"Slide {i} does not match the required order of service.",
-                "status": Status.ERROR,
-            }
-            result.append(item)
-
     if len(result) == 0:
         item: Result = {
             "title": "Check all required order of service items are present and in the correct order",
