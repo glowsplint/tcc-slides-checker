@@ -1,7 +1,8 @@
 import os
 import re
+from functools import cached_property
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, TypedDict
 
 if __name__ == "__main__":
     if Path(os.getcwd()).name == "processing":
@@ -12,24 +13,54 @@ from pptx import Presentation
 from pptx.slide import Slide
 
 
+class Result(TypedDict):
+    title: str
+    expected: str  # actionable statement
+    provided: str  # observed from slides
+    result: bool
+
+
 class ContentChecker(Checker):
     """
     Checks the content of the uploaded slides according to the inputs.
     """
 
     def __init__(
-        self, selected_date, req_order_of_service, sermon_discussion_qns, files
+        self, selected_date, req_order_of_service, sermon_discussion_qns, presentations
     ) -> None:
         self.selected_date = selected_date
         self.req_order_of_service = req_order_of_service
         self.sermon_discussion_qns = sermon_discussion_qns
-        self.files = files
+        self.presentations = presentations
 
-    def run(self):
-        pass
+    @cached_property
+    def pptx(self):
+        # TODO: extend to multiple presentations
+        return self.presentations[0]
 
-    def check_existence_of_section_headers(self, section_headers: list[Slide]):
-        assert len(section_headers) > 0
+    def run(self) -> list[Result]:
+        """
+        Runs all the checks within the ContentChecker.
+
+        Returns:
+            list[dict[str,str]]: List of dictionaries containing 'title' and 'description' keys
+        """
+        result = [
+            self.check_existence_of_section_headers(
+                section_headers=section_headers(self.pptx.slides)
+            )
+        ]
+        return result
+
+    def check_existence_of_section_headers(
+        self, section_headers: list[Slide]
+    ) -> Result:
+        return {
+            "title": "Check existence of section headers",
+            "expected": "There should be more than 1 section header slide.",
+            "provided": f"{len(section_headers)} section header slides found.",
+            "result": len(section_headers) > 0,
+        }
 
 
 def get_slide_subset_with_text(all_slides: Iterable[Slide], text: str) -> list[Slide]:
@@ -128,19 +159,39 @@ def check_section_headers_have_correct_order(
     # 2. Check that there is a text box on the page that contains the order of service
     # 3. Check that the order of service is correct
     # TODO: Tell me which slide number and how it is incorrect
+    # TODO: add slide numbers to the order of service
+    result = []
     matched_text = "(Opening Song|Closing Song|Hearing God(\u2018|')s Word Read)"
     for slide_text in slide_order_of_service:
         index = 0
         for entry in slide_text:
             if re.match(matched_text, entry) is not None:
                 title, comments = req_order_of_service[index]
-                assert f"{title} \u2013 {comments}" == entry
+                is_commented_items_correct = f"{title} \u2013 {comments}" == entry
+                assert is_commented_items_correct
+                if is_commented_items_correct:
+                    index += 1
+                    continue
+                # result.append(
+                #     {
+                #         "title": "Check section headers have correct order",
+                #         "expected": "",
+                #         "provided": f"{len(section_headers)} section header slides found.",
+                #         "result": len(section_headers) > 0,
+                #     }
+                # )
             elif entry != req_order_of_service[index][0]:
                 continue
             index += 1
         assert index == len(
             req_order_of_service
         ), "The order of service in the slides do not contain the entire required order of service!"
+        # return {
+        #     "title": "Check existence of section headers",
+        #     "expected": "There should be more than 1 section header slide.",
+        #     "provided": f"{len(section_headers)} section header slides found.",
+        #     "result": len(section_headers) > 0,
+        # }
 
 
 def check_family_confession_content_matches_number(
@@ -204,9 +255,18 @@ Discuss in groups	5
 Dismissal		"""
 
 
-def get_clean_order_of_service(
+def get_clean_req_order_of_service(
     raw_req_order_of_service_no_declaration: str,
 ) -> list[tuple[str, int, str]]:
+    """
+    Returns the cleaned up required order of service.
+
+    Args:
+        raw_req_order_of_service_no_declaration (str): Raw required order of service
+
+    Returns:
+        list[tuple[str, int, str]]: _description_
+    """
     result, intermediate = [], []
     for item in raw_req_order_of_service_no_declaration.split("\n"):
         intermediate.append(item.split("\t"))
@@ -216,36 +276,45 @@ def get_clean_order_of_service(
 
 
 def filter_clean_req_order_of_service(
-    raw_req_order_of_service_no_declaration: str,
+    clean_req_order_of_service: list[tuple[str, int, str]],
 ) -> list[tuple[str, str]]:
     """
-    Order of service with elements at position:
+    Returns the filtered clean required order of service with elements at position:
     1. Item
     2. Things to note
 
     Returns:
         tuple[str, str]
+
+    Args:
+        raw_req_order_of_service_no_declaration (str): Raw
+
+    Returns:
+        list[tuple[str, str]]: _description_
     """
     return [
         (section_mapping.get(item[0], item[0]), item[2])
-        for item in raw_req_order_of_service_no_declaration
+        for item in clean_req_order_of_service
         if not re.match("(Opening Words|Dismissal|Closing Words)", item[0])
     ]
 
 
 clean_req_order_of_service = filter_clean_req_order_of_service(
-    get_clean_order_of_service(raw_req_order_of_service_no_declaration())
+    get_clean_req_order_of_service(raw_req_order_of_service_no_declaration())
 )
 
 if __name__ == "__main__":
+
+    with open("input/01.05 (9am) service slides.pptx", "rb") as f:
+        pptx = Presentation(f)
+
     cc = ContentChecker(
         selected_date="08 May 2022",
         req_order_of_service="",
         sermon_discussion_qns="",
-        files=[],
+        presentations=[pptx],
     )
-    with open("input/01.05 (9am) service slides.pptx", "rb") as f:
-        pptx = Presentation(f)
+
     check_section_headers_have_correct_order(
         clean_req_order_of_service,
         slide_order_of_service(section_headers(pptx.slides)),
