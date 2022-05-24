@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "b2d370b61b5d8627fd9dee5e6049239a8aa564e3022d5d6f4d1533d8d943066f"
+            "sha256": "3d2fa566805fc3fe77520efeb9c711b1cfd9747f7d27799f33f004ca1d02176a"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -324,6 +324,14 @@
             ],
             "markers": "python_version >= '3.6'",
             "version": "==0.19.1"
+        },
+        "thefuzz": {
+            "hashes": [
+                "sha256:4fcdde8e40f5ca5e8106bc7665181f9598a9c8b18b0a4d38c41a095ba6788972",
+                "sha256:6f7126db2f2c8a54212b05e3a740e45f4291c497d75d20751728f635bb74aa3d"
+            ],
+            "index": "pypi",
+            "version": "==0.19.0"
         },
         "tomli": {
             "hashes": [

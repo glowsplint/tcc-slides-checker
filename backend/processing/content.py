@@ -1,5 +1,6 @@
 import os
 import re
+from enum import Enum
 from functools import cached_property
 from pathlib import Path
 from typing import Iterable, TypedDict
@@ -11,13 +12,27 @@ if __name__ == "__main__":
 from backend.processing.checker import Checker
 from pptx import Presentation
 from pptx.slide import Slide
+from thefuzz import fuzz
+
+
+class Status(str, Enum):
+    ERROR = "Error"
+    WARNING = "Warning"
+    PASS = "Passing"
+
+    def __repr__(self):
+        if self == Status.ERROR:
+            return "Error"
+        elif self == Status.WARNING:
+            return "Warning"
+        elif self == Status.PASS:
+            return "Pass"
 
 
 class Result(TypedDict):
     title: str
-    expected: str  # actionable statement
-    provided: str  # observed from slides
-    result_passed: bool
+    comments: str
+    status: Status
 
 
 SlideSubset = dict[int, Slide]
@@ -58,12 +73,12 @@ class ContentChecker(Checker):
     def check_existence_of_section_headers(
         self, section_headers: SlideSubset
     ) -> Result:
-        return {
-            "title": "Check existence of section headers",
-            "expected": "There should be more than 1 section header slide.",
-            "provided": f"{len(section_headers)} section header slides found.",
-            "result_passed": len(section_headers) > 0,
+        result: Result = {
+            "title": "Check existence of section header slides",
+            "comments": f"{len(section_headers)} section header slides found.",
+            "status": Status.ERROR,
         }
+        return result
 
 
 def get_slide_subset_with_text(all_slides: Iterable[Slide], text: str) -> SlideSubset:
@@ -78,7 +93,7 @@ def get_slide_subset_with_text(all_slides: Iterable[Slide], text: str) -> SlideS
         SlideSubset: Subset of slides with slide number (1-indexed) as keys
     """
     subset = dict()
-    for i, slide in enumerate(all_slides):
+    for i, slide in enumerate(all_slides, 1):
         for shape in slide.shapes:
             if not shape.has_text_frame:
                 continue
@@ -149,7 +164,7 @@ def slide_order_of_service(section_headers: SlideSubset) -> dict[int, list[str]]
 def check_section_headers_have_correct_order(
     req_order_of_service: list[tuple[str, str]],
     slide_order_of_service: dict[int, list[str]],
-):
+) -> list[Result]:
     """
     Test all section headers have the correct order of service by checking that the
     order of service provided in each section header slide matches the provided order
@@ -167,47 +182,59 @@ def check_section_headers_have_correct_order(
     # 3. Check that the order of service is correct
     # TODO: Tell me which slide number and how it is incorrect
     result = []
-    matched_text = "(Opening Song|Closing Song|Hearing God(\u2018|')s Word Read)"
+    matched_text = "(Opening Song|Closing Song|Hearing God(\u2018|\u2019|')s Word Read)"
+
     for i, slide_text in slide_order_of_service.items():
         index = 0
         for entry in slide_text:
-            if re.match(matched_text, entry) is not None:
-                title, comments = req_order_of_service[index]
-                is_commented_items_correct = f"{title} \u2013 {comments}" == entry
+
+            title, comments = req_order_of_service[index]
+            required_item = f"{title} \u2013 {comments}"
+            is_commented_item = re.match(matched_text, entry)
+            is_close_match = fuzz.partial_ratio(required_item, entry)
+
+            if is_commented_item is not None:
+                is_commented_items_correct = required_item == entry
+                item: Result
                 if is_commented_items_correct:
                     index += 1
                     continue
-                result.append(
-                    {
-                        "title": "Check section headers are in the correct order",
-                        "expected": "",
-                        "provided": f"Slide {i} does not match the required order of service.",
-                        "result_passed": False,
+                if 90 < is_close_match and is_close_match < 100:
+                    item = {
+                        "title": "Is there a typo?",
+                        "status": Status.WARNING,
+                        "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. Partial ratio = {is_close_match}",
                     }
-                )
+                    index += 1
+                else:
+                    item = {
+                        "title": "Check section headers are in the correct order",
+                        "comments": f"Slide {i} does not match the required order of service.",
+                        "status": Status.ERROR,
+                    }
+                if item not in result:
+                    result.append(item)
+
             elif entry != req_order_of_service[index][0]:
                 continue
             index += 1
 
         is_pointer_match_order_length = index == len(req_order_of_service)
         if not is_pointer_match_order_length:
-            result.append(
-                {
-                    "title": "Check all required order of service items are present",
-                    "expected": f"<item> is missing from the order of service on Slide {i}.",
-                    "provided": f"<provided_items>",
-                    "result_passed": False,
-                }
-            )
-    if len(result) == 0:
-        result.append(
-            {
-                "title": "Check all required order of service items are present and in the correct order",
-                "expected": f"<required_order_of_service>",
-                "provided": f"<slide_order_of_service>",
-                "result_passed": True,
+            item: Result = {
+                "title": "Check all required order of service items are present",
+                "comments": f"Slide {i} does not match the required order of service.",
+                "status": Status.ERROR,
             }
-        )
+            result.append(item)
+
+    if len(result) == 0:
+        item: Result = {
+            "title": "Check all required order of service items are present and in the correct order",
+            "status": Status.PASS,
+            "comments": "All slides containing order of service have the required order of service items and are presented in the correct order.",
+        }
+        result.append(item)
     return result
 
 
@@ -252,8 +279,8 @@ def check_all_lyric_slides_have_no_title(req_order_of_service: tuple[str, str]):
 
 
 section_mapping = {
-    "Bible Reading": "Hearing God\u2018s Word Read",
-    "Sermon": "Hearing God\u2018s Word Proclaimed",
+    "Bible Reading": "Hearing God\u2019s Word Read",
+    "Sermon": "Hearing God\u2019s Word Proclaimed",
     "Discuss in groups": "Sermon Discussion",
 }
 

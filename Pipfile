@@ -9,6 +9,7 @@ pytest = "*"
 fastapi = "*"
 uvicorn = "*"
 python-multipart = "*"
+thefuzz = "*"
 
 [dev-packages]
 black = "*"
