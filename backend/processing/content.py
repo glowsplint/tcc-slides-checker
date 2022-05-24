@@ -37,6 +37,70 @@ class Result(TypedDict):
 
 SlideSubset = dict[int, Slide]
 
+section_mapping = {
+    "Bible Reading": "Hearing God\u2019s Word Read",
+    "Sermon": "Hearing God\u2019s Word Proclaimed",
+    "Discuss in groups": "Sermon Discussion",
+}
+
+
+def raw_req_order_of_service_no_declaration() -> str:
+    return """Opening Words	1	
+Opening Song	4	God Omniscient, God All Knowing
+Family Confession	2	#11 Confession of Sin (Slide 17 & 18)
+Family Prayer	4	Refer to Prayer Points Tab in this document (Usually updated by Thu)
+Family Business	5	Refer to Family Business Tab
+Bible Reading 	4	Daniel 2:1-24 & 31-47
+Sermon	30	Preacher: Denesh
+Closing Song	4	Crown Him with Many Crowns
+Closing Words	1	
+Discuss in groups	5	
+Dismissal		"""
+
+
+def get_clean_req_order_of_service(
+    raw_req_order_of_service_no_declaration: str,
+) -> list[tuple[str, int, str]]:
+    """
+    Returns the cleaned up required order of service.
+
+    Args:
+        raw_req_order_of_service_no_declaration (str): Raw required order of service
+
+    Returns:
+        list[tuple[str, int, str]]: _description_
+    """
+    result, intermediate = [], []
+    for item in raw_req_order_of_service_no_declaration.split("\n"):
+        intermediate.append(item.split("\t"))
+    for item in intermediate:
+        result.append((item[0].strip(), item[1].strip(), item[2].strip()))
+    return result
+
+
+def filter_clean_req_order_of_service(
+    clean_req_order_of_service: list[tuple[str, int, str]],
+) -> list[tuple[str, str]]:
+    """
+    Returns the filtered clean required order of service with elements at position:
+    1. Item
+    2. Things to note
+
+    Returns:
+        tuple[str, str]
+
+    Args:
+        raw_req_order_of_service_no_declaration (str): Raw
+
+    Returns:
+        list[tuple[str, str]]: _description_
+    """
+    return [
+        (section_mapping.get(item[0], item[0]), item[2])
+        for item in clean_req_order_of_service
+        if not re.match("(Opening Words|Dismissal|Closing Words)", item[0])
+    ]
+
 
 class ContentChecker(Checker):
     """
@@ -63,10 +127,19 @@ class ContentChecker(Checker):
         Returns:
             list[dict[str,str]]: List of dictionaries containing 'title' and 'description' keys
         """
+        clean_req_order_of_service = filter_clean_req_order_of_service(
+            get_clean_req_order_of_service(raw_req_order_of_service_no_declaration())
+        )
         result = [
             self.check_existence_of_section_headers(
                 section_headers=section_headers(self.pptx.slides)
-            )
+            ),
+            *self.check_section_headers_have_correct_order(
+                req_order_of_service=clean_req_order_of_service,
+                slide_order_of_service=slide_order_of_service(
+                    section_headers(pptx.slides)
+                ),
+            ),
         ]
         return result
 
@@ -79,6 +152,114 @@ class ContentChecker(Checker):
             "status": Status.ERROR,
         }
         return result
+
+    def check_section_headers_have_correct_order(
+        self,
+        req_order_of_service: list[tuple[str, str]],
+        slide_order_of_service: dict[int, list[str]],
+    ) -> list[Result]:
+        """
+        Test all section headers have the correct order of service by checking that the
+        order of service provided in each section header slide matches the provided order
+        of service.
+
+        Section headers are the slides that separate each section of the service.
+        These slides will usually have the order of service in grey on the right side.
+
+        Args:
+            req_order_of_service (tuple[str, str]): Required order of service
+            slide_order_of_service (list[tuple[str, str]]): Order of services from slides
+        """
+        # 1. Identify the section header slides
+        # 2. Extract the text from the slide
+        # 3. Check that the order of service from the text in the slides is correct
+        result: list[Result] = []
+        matched_text = (
+            "(Opening Song|Closing Song|Hearing God(\u2018|\u2019|')s Word Read)"
+        )
+
+        for i, slide_text in slide_order_of_service.items():
+            index = 0
+            for entry in slide_text:
+
+                title, comments = req_order_of_service[index]
+                required_item = f"{title} \u2013 {comments}"
+                is_commented_item = re.match(matched_text, entry)
+                is_close_match = fuzz.partial_ratio(required_item, entry)
+
+                if is_commented_item is not None:
+                    is_commented_items_correct = required_item == entry
+                    if is_commented_items_correct:
+                        index += 1
+                        continue
+                    if 90 < is_close_match and is_close_match < 100:
+                        item = {
+                            "title": "Is there a typo?",
+                            "status": Status.WARNING,
+                            "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. Partial ratio = {is_close_match}",
+                        }
+                        index += 1
+                    else:
+                        item = {
+                            "title": "Check section headers are in the correct order",
+                            "comments": f"Slide {i} does not match the required order of service.",
+                            "status": Status.ERROR,
+                        }
+                    if item not in result:
+                        result.append(item)
+
+                elif entry != req_order_of_service[index][0]:
+                    continue
+                index += 1
+
+        if len(result) == 0:
+            item: Result = {
+                "title": "Check all required order of service items are present and in the correct order",
+                "status": Status.PASS,
+                "comments": "All slides containing order of service have the required order of service items and are presented in the correct order.",
+            }
+            result.append(item)
+        return result
+
+    def check_family_confession_content_matches_number(
+        self, req_order_of_service: tuple[str, str]
+    ):
+        """
+        Test family confession has the correct contents by checking that the words on the
+        slide match the required content (usually a #number) specified in the order of
+        service.
+
+        Family Confession is an item in the order of service.
+        """
+        # 1. Identify the family confession slides
+        # 2. Check that there is a text box on the page that contains the family confession
+        # 3. Check that it matches the number
+        pass
+
+    def check_family_declaration_content_matches_number(
+        self,
+        req_order_of_service: tuple[str, str],
+    ):
+        """
+        Test that family declaration (if present) has the correct contents by checking that
+        the words on the slide match the required content (usually a #number) specified in
+        the order of service.
+
+        Family Declaration is an optional item in the order of service.
+        """
+        pass
+
+    def check_all_lyric_slides_have_no_title(
+        self, req_order_of_service: tuple[str, str]
+    ):
+        """
+        Test all lyric slides do not contain a title.
+
+        Lyric slides are slides for the opening and closing song.
+        """
+        # 1. Identify the lyric slides for the opening and closing song
+        # 2. Check that the title is not present (i.e. none of the text boxes contain the song title exclusively)
+        pass
 
 
 def get_slide_subset_with_text(all_slides: Iterable[Slide], text: str) -> SlideSubset:
@@ -142,12 +323,6 @@ def slide_order_of_service(section_headers: SlideSubset) -> dict[int, list[str]]
         """
         Splits up raw text on newline characters and strips on both sides of the
         resulting string.
-
-        Args:
-            text (str): _description_
-
-        Returns:
-            list[str]: _description_
         """
         split_text = re.split("\n+", text)
         return [
@@ -161,185 +336,7 @@ def slide_order_of_service(section_headers: SlideSubset) -> dict[int, list[str]]
     return {i: split_and_strip(item) for i, item in orders_of_service.items()}
 
 
-def check_section_headers_have_correct_order(
-    req_order_of_service: list[tuple[str, str]],
-    slide_order_of_service: dict[int, list[str]],
-) -> list[Result]:
-    """
-    Test all section headers have the correct order of service by checking that the
-    order of service provided in each section header slide matches the provided order
-    of service.
-
-    Section headers are the slides that separate each section of the service.
-    These slides will usually have the order of service in grey on the right side.
-
-    Args:
-        req_order_of_service (tuple[str, str]): Required order of service
-        slide_order_of_service (list[tuple[str, str]]): Order of services from slides
-    """
-    # 1. Identify the section header slides
-    # 2. Check that there is a text box on the page that contains the order of service
-    # 3. Check that the order of service is correct
-    # TODO: Tell me which slide number and how it is incorrect
-    result = []
-    matched_text = "(Opening Song|Closing Song|Hearing God(\u2018|\u2019|')s Word Read)"
-
-    for i, slide_text in slide_order_of_service.items():
-        index = 0
-        for entry in slide_text:
-
-            title, comments = req_order_of_service[index]
-            required_item = f"{title} \u2013 {comments}"
-            is_commented_item = re.match(matched_text, entry)
-            is_close_match = fuzz.partial_ratio(required_item, entry)
-
-            if is_commented_item is not None:
-                is_commented_items_correct = required_item == entry
-                item: Result
-                if is_commented_items_correct:
-                    index += 1
-                    continue
-                if 90 < is_close_match and is_close_match < 100:
-                    item = {
-                        "title": "Is there a typo?",
-                        "status": Status.WARNING,
-                        "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. Partial ratio = {is_close_match}",
-                    }
-                    index += 1
-                else:
-                    item = {
-                        "title": "Check section headers are in the correct order",
-                        "comments": f"Slide {i} does not match the required order of service.",
-                        "status": Status.ERROR,
-                    }
-                if item not in result:
-                    result.append(item)
-
-            elif entry != req_order_of_service[index][0]:
-                continue
-            index += 1
-
-    if len(result) == 0:
-        item: Result = {
-            "title": "Check all required order of service items are present and in the correct order",
-            "status": Status.PASS,
-            "comments": "All slides containing order of service have the required order of service items and are presented in the correct order.",
-        }
-        result.append(item)
-    return result
-
-
-def check_family_confession_content_matches_number(
-    req_order_of_service: tuple[str, str]
-):
-    """
-    Test family confession has the correct contents by checking that the words on the
-    slide match the required content (usually a #number) specified in the order of
-    service.
-
-    Family Confession is an item in the order of service.
-    """
-    # 1. Identify the family confession slides
-    # 2. Check that there is a text box on the page that contains the family confession
-    # 3. Check that it matches the number
-    pass
-
-
-def check_family_declaration_content_matches_number(
-    req_order_of_service: tuple[str, str],
-):
-    """
-    Test that family declaration (if present) has the correct contents by checking that
-    the words on the slide match the required content (usually a #number) specified in
-    the order of service.
-
-    Family Declaration is an optional item in the order of service.
-    """
-    pass
-
-
-def check_all_lyric_slides_have_no_title(req_order_of_service: tuple[str, str]):
-    """
-    Test all lyric slides do not contain a title.
-
-    Lyric slides are slides for the opening and closing song.
-    """
-    # 1. Identify the lyric slides for the opening and closing song
-    # 2. Check that the title is not present (i.e. none of the text boxes contain the song title exclusively)
-    pass
-
-
-section_mapping = {
-    "Bible Reading": "Hearing God\u2019s Word Read",
-    "Sermon": "Hearing God\u2019s Word Proclaimed",
-    "Discuss in groups": "Sermon Discussion",
-}
-
-
-def raw_req_order_of_service_no_declaration() -> str:
-    return """Opening Words	1	
-Opening Song	4	God Omniscient, God All Knowing
-Family Confession	2	#11 Confession of Sin (Slide 17 & 18)
-Family Prayer	4	Refer to Prayer Points Tab in this document (Usually updated by Thu)
-Family Business	5	Refer to Family Business Tab
-Bible Reading 	4	Daniel 2:1-24 & 31-47
-Sermon	30	Preacher: Denesh
-Closing Song	4	Crown Him with Many Crowns
-Closing Words	1	
-Discuss in groups	5	
-Dismissal		"""
-
-
-def get_clean_req_order_of_service(
-    raw_req_order_of_service_no_declaration: str,
-) -> list[tuple[str, int, str]]:
-    """
-    Returns the cleaned up required order of service.
-
-    Args:
-        raw_req_order_of_service_no_declaration (str): Raw required order of service
-
-    Returns:
-        list[tuple[str, int, str]]: _description_
-    """
-    result, intermediate = [], []
-    for item in raw_req_order_of_service_no_declaration.split("\n"):
-        intermediate.append(item.split("\t"))
-    for item in intermediate:
-        result.append(tuple([item[0].strip(), item[1].strip(), item[2].strip()]))
-    return result
-
-
-def filter_clean_req_order_of_service(
-    clean_req_order_of_service: list[tuple[str, int, str]],
-) -> list[tuple[str, str]]:
-    """
-    Returns the filtered clean required order of service with elements at position:
-    1. Item
-    2. Things to note
-
-    Returns:
-        tuple[str, str]
-
-    Args:
-        raw_req_order_of_service_no_declaration (str): Raw
-
-    Returns:
-        list[tuple[str, str]]: _description_
-    """
-    return [
-        (section_mapping.get(item[0], item[0]), item[2])
-        for item in clean_req_order_of_service
-        if not re.match("(Opening Words|Dismissal|Closing Words)", item[0])
-    ]
-
-
-clean_req_order_of_service = filter_clean_req_order_of_service(
-    get_clean_req_order_of_service(raw_req_order_of_service_no_declaration())
-)
-
 if __name__ == "__main__":
-
     with open("input/01.05 (9am) service slides.pptx", "rb") as f:
         pptx = Presentation(f)
 
@@ -349,8 +346,4 @@ if __name__ == "__main__":
         sermon_discussion_qns="",
         presentations=[pptx],
     )
-
-    result = check_section_headers_have_correct_order(
-        clean_req_order_of_service,
-        slide_order_of_service(section_headers(pptx.slides)),
-    )
+    result = cc.run()

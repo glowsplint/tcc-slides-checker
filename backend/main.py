@@ -58,7 +58,7 @@ async def upload_handler(
     req_order_of_service: str = Form(...),
     sermon_discussion_qns: str = Form(...),
     files: list[UploadFile] = File(...),
-) -> FileResponse:
+) -> dict:
     """
     Primary endpoint which handles the POST request.
     Args:
