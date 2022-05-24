@@ -20,6 +20,9 @@ class Result(TypedDict):
     result: bool
 
 
+SlideSubset = dict[int, Slide]
+
+
 class ContentChecker(Checker):
     """
     Checks the content of the uploaded slides according to the inputs.
@@ -53,7 +56,7 @@ class ContentChecker(Checker):
         return result
 
     def check_existence_of_section_headers(
-        self, section_headers: list[Slide]
+        self, section_headers: SlideSubset
     ) -> Result:
         return {
             "title": "Check existence of section headers",
@@ -63,7 +66,7 @@ class ContentChecker(Checker):
         }
 
 
-def get_slide_subset_with_text(all_slides: Iterable[Slide], text: str) -> list[Slide]:
+def get_slide_subset_with_text(all_slides: Iterable[Slide], text: str) -> SlideSubset:
     """
     Returns a subset of all slides which contain the provided text argument on the slide
 
@@ -72,19 +75,19 @@ def get_slide_subset_with_text(all_slides: Iterable[Slide], text: str) -> list[S
         text (str): String to match
 
     Returns:
-        list[Slide]: List of slides matching the subset
+        SlideSubset: Subset of slides with slide number (1-indexed) as keys
     """
-    subset = []
-    for slide in all_slides:
+    subset = dict()
+    for i, slide in enumerate(all_slides):
         for shape in slide.shapes:
             if not shape.has_text_frame:
                 continue
             if text in shape.text_frame.text:
-                subset.append(slide)
+                subset[i] = slide
     return subset
 
 
-def section_headers(all_slides: Iterable[Slide]) -> list[Slide]:
+def section_headers(all_slides: Iterable[Slide]) -> SlideSubset:
     """
     Section header slides are slides that contain the text "Today's order of service".
     This includes the Welcome slide, and all other item slides (i.e. Family Confession,
@@ -99,7 +102,7 @@ def section_headers(all_slides: Iterable[Slide]) -> list[Slide]:
     return get_slide_subset_with_text(all_slides, text="order of service")
 
 
-def get_raw_text_from_slides(slides: Iterable[Slide]) -> list[str]:
+def get_raw_text_from_slides(slides: SlideSubset) -> list[str]:
     """
     Returns the raw text from any shapes (including text boxes) in the provided slides.
 
@@ -109,11 +112,13 @@ def get_raw_text_from_slides(slides: Iterable[Slide]) -> list[str]:
     Returns:
         list[str]: List of strings in these slides
     """
-    return [shape.text_frame.text for slide in slides for shape in slide.shapes]
+    return [
+        shape.text_frame.text for slide in slides.values() for shape in slide.shapes
+    ]
 
 
-def slide_order_of_service(section_headers: list[Slide]):
-    def filter_order_of_service_only(text: str) -> list[tuple[str, str]]:
+def slide_order_of_service(section_headers: SlideSubset) -> list[list[str]]:
+    def filter_order_of_service_only(text: list[str]) -> list[str]:
         return [item for item in text if "order of service" in item]
 
     def split_and_strip(text: str) -> list[str]:
@@ -140,8 +145,8 @@ def slide_order_of_service(section_headers: list[Slide]):
 
 
 def check_section_headers_have_correct_order(
-    req_order_of_service: tuple[str, str],
-    slide_order_of_service: list[tuple[str, str]],
+    req_order_of_service: list[tuple[str, str]],
+    slide_order_of_service: list[list[str]],
 ):
     """
     Test all section headers have the correct order of service by checking that the
