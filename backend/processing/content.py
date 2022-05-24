@@ -102,7 +102,7 @@ def section_headers(all_slides: Iterable[Slide]) -> SlideSubset:
     return get_slide_subset_with_text(all_slides, text="order of service")
 
 
-def get_raw_text_from_slides(slides: SlideSubset) -> list[str]:
+def get_raw_text_from_slides(slides: SlideSubset) -> dict[int, str]:
     """
     Returns the raw text from any shapes (including text boxes) in the provided slides.
 
@@ -112,14 +112,16 @@ def get_raw_text_from_slides(slides: SlideSubset) -> list[str]:
     Returns:
         list[str]: List of strings in these slides
     """
-    return [
-        shape.text_frame.text for slide in slides.values() for shape in slide.shapes
-    ]
+    return {
+        i: shape.text_frame.text
+        for i, slide in slides.items()
+        for shape in slide.shapes
+    }
 
 
-def slide_order_of_service(section_headers: SlideSubset) -> list[list[str]]:
-    def filter_order_of_service_only(text: list[str]) -> list[str]:
-        return [item for item in text if "order of service" in item]
+def slide_order_of_service(section_headers: SlideSubset) -> dict[int, list[str]]:
+    def filter_order_of_service_only(texts: dict[int, str]) -> dict[int, str]:
+        return {i: item for i, item in texts.items() if "order of service" in item}
 
     def split_and_strip(text: str) -> list[str]:
         """
@@ -141,12 +143,12 @@ def slide_order_of_service(section_headers: SlideSubset) -> list[list[str]]:
 
     section_header_text = get_raw_text_from_slides(section_headers)
     orders_of_service = filter_order_of_service_only(section_header_text)
-    return [split_and_strip(item) for item in orders_of_service]
+    return {i: split_and_strip(item) for i, item in orders_of_service.items()}
 
 
 def check_section_headers_have_correct_order(
     req_order_of_service: list[tuple[str, str]],
-    slide_order_of_service: list[list[str]],
+    slide_order_of_service: dict[int, list[str]],
 ):
     """
     Test all section headers have the correct order of service by checking that the
@@ -164,10 +166,9 @@ def check_section_headers_have_correct_order(
     # 2. Check that there is a text box on the page that contains the order of service
     # 3. Check that the order of service is correct
     # TODO: Tell me which slide number and how it is incorrect
-    # TODO: add slide numbers to the order of service
     result = []
     matched_text = "(Opening Song|Closing Song|Hearing God(\u2018|')s Word Read)"
-    for slide_text in slide_order_of_service:
+    for _, slide_text in slide_order_of_service.items():
         index = 0
         for entry in slide_text:
             if re.match(matched_text, entry) is not None:
