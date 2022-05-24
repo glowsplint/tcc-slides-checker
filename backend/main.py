@@ -79,4 +79,4 @@ async def upload_handler(
         sermon_discussion_qns=sermon_discussion_qns,
         presentations=[presentations],
     )
-    return {"result": cc.run()}
+    return {"results": cc.run()}

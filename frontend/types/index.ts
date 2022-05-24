@@ -10,16 +10,19 @@ interface Settings {
   orderOfService: ValueAndError<string>;
   selectedDate: ValueAndError<string>;
   sermonDiscussionQns: ValueAndError<string>;
+  results?: Result[];
 }
 
 type SetSettings = React.Dispatch<SetStateAction<Settings>>;
 
-interface SlidesResponse {
-  result: {
-    title: string;
-    comments: string;
-    status: string;
-  };
+interface Result {
+  title: string;
+  comments: string;
+  status: string;
 }
 
-export type { Settings, SetSettings, SlidesResponse };
+interface SlidesResponse {
+  results: Result[];
+}
+
+export type { Settings, SetSettings, Result, SlidesResponse };
