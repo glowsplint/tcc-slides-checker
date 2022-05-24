@@ -1,3 +1,4 @@
+import io
 import os
 import time
 from pathlib import Path
@@ -6,9 +7,11 @@ from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pptx import Presentation
+from pydantic import BaseModel
 
-from backend.file_io import get_output_path
 from backend.metadata import metadata
+from backend.processing.content import ContentChecker, Result
 
 DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE")
 app = FastAPI(**metadata)
@@ -26,8 +29,10 @@ def set_appropriate_middleware(mode: bool) -> None:
         origins = [
             "http://127.0.0.1:3000",
             "http://127.0.0.1:5000",
+            "http://127.0.0.1:8000",
             "http://localhost:3000",
             "http://localhost:5000",
+            "http://localhost:8000",
         ]
 
         app.add_middleware(
@@ -66,5 +71,12 @@ async def upload_handler(
     Returns:
         FileResponse: Excel spreadsheet output
     """
-    time.sleep(5)
-    return {"message": "morp"}
+    with files[0].file as f:
+        presentations = Presentation(pptx=io.BytesIO(f.read()))
+    cc = ContentChecker(
+        selected_date=selected_date,
+        req_order_of_service=req_order_of_service,
+        sermon_discussion_qns=sermon_discussion_qns,
+        presentations=[presentations],
+    )
+    return {"result": cc.run()}

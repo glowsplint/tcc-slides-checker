@@ -14,4 +14,12 @@ interface Settings {
 
 type SetSettings = React.Dispatch<SetStateAction<Settings>>;
 
-export type { Settings, SetSettings };
+interface SlidesResponse {
+  result: {
+    title: string;
+    comments: string;
+    status: string;
+  };
+}
+
+export type { Settings, SetSettings, SlidesResponse };

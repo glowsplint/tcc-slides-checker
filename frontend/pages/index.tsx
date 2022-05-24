@@ -4,7 +4,7 @@ import React from 'react';
 import styles from '../styles/Home.module.css';
 import { InboxOutlined, UploadOutlined } from '@ant-design/icons';
 import { RcFile } from 'antd/lib/upload';
-import { SetSettings, Settings } from '../types';
+import { SetSettings, Settings, SlidesResponse } from '../types';
 import { useSettings } from '../contexts/settings';
 import {
   Alert,
@@ -78,6 +78,16 @@ const makePOSTRequest = async ({
 const setIsLoading = (setSettings: SetSettings, bool: boolean) => {
   setSettings((previous) => {
     return { ...previous, isLoading: bool };
+  });
+};
+
+const setResponse = (
+  setSettings: SetSettings,
+  responseJson: SlidesResponse
+) => {
+  const { result } = responseJson;
+  setSettings((previous) => {
+    return { ...previous, result };
   });
 };
 
@@ -249,7 +259,8 @@ const UploadButton = () => {
     }
     setIsLoading(setSettings, true);
     const response = getResponse(settings);
-    console.log((await response).json());
+    const responseJson = await (await response).json();
+    setResponse(setSettings, responseJson);
     setIsLoading(setSettings, false);
   };
   return (

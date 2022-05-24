@@ -128,7 +128,7 @@ class ContentChecker(Checker):
             list[dict[str,str]]: List of dictionaries containing 'title' and 'description' keys
         """
         clean_req_order_of_service = filter_clean_req_order_of_service(
-            get_clean_req_order_of_service(raw_req_order_of_service_no_declaration())
+            get_clean_req_order_of_service(self.req_order_of_service)
         )
         result = [
             self.check_existence_of_section_headers(
@@ -137,7 +137,7 @@ class ContentChecker(Checker):
             *self.check_section_headers_have_correct_order(
                 req_order_of_service=clean_req_order_of_service,
                 slide_order_of_service=slide_order_of_service(
-                    section_headers(pptx.slides)
+                    section_headers(self.pptx.slides)
                 ),
             ),
         ]
@@ -342,7 +342,7 @@ if __name__ == "__main__":
 
     cc = ContentChecker(
         selected_date="08 May 2022",
-        req_order_of_service="",
+        req_order_of_service=raw_req_order_of_service_no_declaration(),
         sermon_discussion_qns="",
         presentations=[pptx],
     )
