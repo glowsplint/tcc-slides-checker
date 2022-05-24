@@ -17,7 +17,7 @@ class Result(TypedDict):
     title: str
     expected: str  # actionable statement
     provided: str  # observed from slides
-    result: bool
+    result_passed: bool
 
 
 SlideSubset = dict[int, Slide]
@@ -62,7 +62,7 @@ class ContentChecker(Checker):
             "title": "Check existence of section headers",
             "expected": "There should be more than 1 section header slide.",
             "provided": f"{len(section_headers)} section header slides found.",
-            "result": len(section_headers) > 0,
+            "result_passed": len(section_headers) > 0,
         }
 
 
@@ -168,36 +168,47 @@ def check_section_headers_have_correct_order(
     # TODO: Tell me which slide number and how it is incorrect
     result = []
     matched_text = "(Opening Song|Closing Song|Hearing God(\u2018|')s Word Read)"
-    for _, slide_text in slide_order_of_service.items():
+    for i, slide_text in slide_order_of_service.items():
         index = 0
         for entry in slide_text:
             if re.match(matched_text, entry) is not None:
                 title, comments = req_order_of_service[index]
                 is_commented_items_correct = f"{title} \u2013 {comments}" == entry
-                assert is_commented_items_correct
                 if is_commented_items_correct:
                     index += 1
                     continue
-                # result.append(
-                #     {
-                #         "title": "Check section headers have correct order",
-                #         "expected": "",
-                #         "provided": f"{len(section_headers)} section header slides found.",
-                #         "result": len(section_headers) > 0,
-                #     }
-                # )
+                result.append(
+                    {
+                        "title": "Check section headers are in the correct order",
+                        "expected": "",
+                        "provided": f"Slide {i} does not match the required order of service.",
+                        "result_passed": False,
+                    }
+                )
             elif entry != req_order_of_service[index][0]:
                 continue
             index += 1
-        assert index == len(
-            req_order_of_service
-        ), "The order of service in the slides do not contain the entire required order of service!"
-        # return {
-        #     "title": "Check existence of section headers",
-        #     "expected": "There should be more than 1 section header slide.",
-        #     "provided": f"{len(section_headers)} section header slides found.",
-        #     "result": len(section_headers) > 0,
-        # }
+
+        is_pointer_match_order_length = index == len(req_order_of_service)
+        if not is_pointer_match_order_length:
+            result.append(
+                {
+                    "title": "Check all required order of service items are present",
+                    "expected": f"<item> is missing from the order of service on Slide {i}.",
+                    "provided": f"<provided_items>",
+                    "result_passed": False,
+                }
+            )
+    if len(result) == 0:
+        result.append(
+            {
+                "title": "Check all required order of service items are present and in the correct order",
+                "expected": f"<required_order_of_service>",
+                "provided": f"<slide_order_of_service>",
+                "result_passed": True,
+            }
+        )
+    return result
 
 
 def check_family_confession_content_matches_number(
@@ -321,7 +332,7 @@ if __name__ == "__main__":
         presentations=[pptx],
     )
 
-    check_section_headers_have_correct_order(
+    result = check_section_headers_have_correct_order(
         clean_req_order_of_service,
         slide_order_of_service(section_headers(pptx.slides)),
     )
