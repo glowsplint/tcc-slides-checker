@@ -149,7 +149,7 @@ class ContentChecker(Checker):
         result: Result = {
             "title": "Check existence of section header slides",
             "comments": f"{len(section_headers)} section header slides found.",
-            "status": Status.ERROR,
+            "status": Status.PASS if len(section_headers) > 0 else Status.ERROR,
         }
         return result
 
