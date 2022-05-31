@@ -275,7 +275,18 @@ def get_slide_subset_with_text(all_slides: Iterable[Slide], text: str) -> SlideS
     """
     subset = dict()
     for i, slide in enumerate(all_slides, 1):
-        for shape in slide.shapes:
+        for shape in slide.shapes:  # type: ignore
+            if not shape.has_text_frame:
+                continue
+            if text in shape.text_frame.text:
+                subset[i] = slide
+    return subset
+
+
+def get_slide_subset_with_master(all_slides, text="order of service") -> SlideSubset:
+    subset = dict()
+    for i, slide in enumerate(all_slides, 1):
+        for shape in slide.slide_layout.shapes:  # type: ignore
             if not shape.has_text_frame:
                 continue
             if text in shape.text_frame.text:
@@ -295,7 +306,11 @@ def section_headers(all_slides: Iterable[Slide]) -> SlideSubset:
     Returns:
         list[Slide]: List of slides matching the subset
     """
-    return get_slide_subset_with_text(all_slides, text="order of service")
+    text = "order of service"
+    return {
+        **get_slide_subset_with_text(all_slides, text),
+        **get_slide_subset_with_master(all_slides, text),
+    }
 
 
 def get_raw_text_from_slides(slides: SlideSubset) -> dict[int, str]:
@@ -311,7 +326,7 @@ def get_raw_text_from_slides(slides: SlideSubset) -> dict[int, str]:
     return {
         i: shape.text_frame.text
         for i, slide in slides.items()
-        for shape in slide.shapes
+        for shape in slide.shapes  # type: ignore
     }
 
 
@@ -337,11 +352,12 @@ def slide_order_of_service(section_headers: SlideSubset) -> dict[int, list[str]]
 
 
 if __name__ == "__main__":
-    with open("input/01.05 (9am) service slides.pptx", "rb") as f:
+    # with open("input/01.05 (9am) service slides.pptx", "rb") as f:
+    with open("input/22.05 (10.30am) service slides.pptx", "rb") as f:
         pptx = Presentation(f)
 
     cc = ContentChecker(
-        selected_date="08 May 2022",
+        selected_date="22 May 2022",
         req_order_of_service=raw_req_order_of_service_no_declaration(),
         sermon_discussion_qns="",
         presentations=[pptx],
