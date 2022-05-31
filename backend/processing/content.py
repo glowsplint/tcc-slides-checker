@@ -46,13 +46,13 @@ section_mapping = {
 
 def raw_req_order_of_service_no_declaration() -> str:
     return """Opening Words	1	
-Opening Song	4	God Omniscient, God All Knowing
+Opening Song	4	Behold Our God
 Family Confession	2	#11 Confession of Sin (Slide 17 & 18)
 Family Prayer	4	Refer to Prayer Points Tab in this document (Usually updated by Thu)
 Family Business	5	Refer to Family Business Tab
-Bible Reading 	4	Daniel 2:1-24 & 31-47
+Bible Reading 	4	Daniel 5
 Sermon	30	Preacher: Denesh
-Closing Song	4	Crown Him with Many Crowns
+Closing Song	4	Only a Holy God
 Closing Words	1	
 Discuss in groups	5	
 Dismissal		"""
@@ -140,6 +140,7 @@ class ContentChecker(Checker):
                     section_headers(self.pptx.slides)
                 ),
             ),
+            *self.check_all_dates_are_as_provided(date=self.selected_date),
         ]
         return result
 
@@ -173,8 +174,8 @@ class ContentChecker(Checker):
         # 1. Identify the section header slides
         # 2. Extract the text from the slide
         # 3. Check that the order of service from the text in the slides is correct
-        result: list[Result] = []
-        matched_text = (
+        results: list[Result] = []
+        items_with_comments = (
             "(Opening Song|Closing Song|Hearing God(\u2018|\u2019|')s Word Read)"
         )
 
@@ -183,8 +184,9 @@ class ContentChecker(Checker):
             for entry in slide_text:
 
                 title, comments = req_order_of_service[index]
+                title = title.replace("\u2018", "\u2019")
                 required_item = f"{title} \u2013 {comments}"
-                is_commented_item = re.match(matched_text, entry)
+                is_commented_item = re.match(items_with_comments, entry)
                 partial_ratio = fuzz.partial_ratio(required_item, entry)
 
                 if is_commented_item is not None:
@@ -193,33 +195,41 @@ class ContentChecker(Checker):
                         index += 1
                         continue
                     elif 90 < partial_ratio < 100:
-                        item = {
+                        result = {
                             "title": "Is there a typo?",
                             "status": Status.WARNING,
                             "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. Similarity score = {partial_ratio} of 100",
                         }
                         index += 1
                     else:
-                        item = {
+                        result = {
                             "title": "Check section headers are in the correct order",
-                            "comments": f"On Slide {i}, Expected: '{required_item}'. Provides: '{entry}'. Similarity score = {partial_ratio} of 100",
+                            "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. Similarity score = {partial_ratio} of 100",
                             "status": Status.ERROR,
                         }
-                    if item not in result:
-                        result.append(item)
-
-                elif entry != req_order_of_service[index][0]:
+                    if result not in results:
+                        results.append(result)
+                elif "\u2018" in entry:
+                    result = {
+                        "title": "Is there a typo?",
+                        "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. The use of the unicode character U+2018 (\u2018) is triggering this warning; replace this character with U+2019 (\u2019) or a standard single quote (') to resolve this error. Similarity score = {partial_ratio} of 100",
+                        "status": Status.ERROR,
+                    }
+                    results.append(result)
+                    index += 1
+                elif entry.replace("\u2018", "\u2019") != title:
                     continue
-                index += 1
+                else:
+                    index += 1
 
-        if len(result) == 0:
-            item: Result = {
+        if len(results) == 0:
+            result: Result = {
                 "title": "Check all required order of service items are present and in the correct order",
                 "status": Status.PASS,
                 "comments": "All slides containing order of service have the required order of service items and are presented in the correct order.",
             }
-            result.append(item)
-        return result
+            results.append(result)
+        return results
 
     def check_family_confession_content_matches_number(
         self, req_order_of_service: tuple[str, str]
@@ -261,35 +271,64 @@ class ContentChecker(Checker):
         # 2. Check that the title is not present (i.e. none of the text boxes contain the song title exclusively)
         pass
 
+    def check_all_dates_are_as_provided(self, date: str):
+        """
+        Test all dates that appear in the presentation are equal to the date of Sunday service.
 
-def get_slide_subset_with_text(all_slides: Iterable[Slide], text: str) -> SlideSubset:
+        Searches for certain date patterns in the slides.
+
+        Date patterns:
+            "01-Jan-2022"
+            "01 Jan 2022"
+
+        Args:
+            date (str): Date of Sunday service
+        """
+        date_pattern = "\\d+[\\s-][A-Za-z]+[\\s-]\\d+"
+        slides_with_dates = get_slides_by_pattern(self.pptx.slides, date_pattern)
+        results = []
+        for i, item_list in get_raw_text_from_slides(slides_with_dates).items():
+            for item in item_list:
+                partial_ratio = fuzz.partial_ratio(item, date)
+                if re.match(date_pattern, item) and item.replace(
+                    "_", " "
+                ) == date.replace("_", " "):
+                    result: Result = {
+                        "title": "Check all dates that appear in the slides are the same as the date of Sunday service.",
+                        "status": Status.ERROR,
+                        "comments": f"On slide {i}, Expected: '{date}'. Provided: '{item}'. Similarity score = {partial_ratio} of 100",
+                    }
+                else:
+                    result: Result = {
+                        "title": "Check all dates that appear in the slides are the same as the date of Sunday service.",
+                        "status": Status.PASS,
+                        "comments": "All slides containing dates display the required date of Sunday service.",
+                    }
+                    results.append(result)
+
+        return results
+
+
+def get_slides_by_pattern(all_slides: Iterable[Slide], pattern: str) -> SlideSubset:
     """
-    Returns a subset of all slides which contain the provided text argument on the slide
+    Returns a subset of all slides that contain the provided text argument on the slide
 
     Args:
         all_slides (Iterable[Slide]): An iterable containing all slides
-        text (str): String to match
+        pattern (str): String to match
 
     Returns:
         SlideSubset: Subset of slides with slide number (1-indexed) as keys
     """
     subset = dict()
     for i, slide in enumerate(all_slides, 1):
-        for shape in slide.shapes:  # type: ignore
+        shapes = [*slide.shapes, *slide.slide_layout.shapes]  # type: ignore
+        for shape in shapes:
             if not shape.has_text_frame:
                 continue
-            if text in shape.text_frame.text:
-                subset[i] = slide
-    return subset
-
-
-def get_slide_subset_with_master(all_slides: Iterable[Slide], text: str) -> SlideSubset:
-    subset = dict()
-    for i, slide in enumerate(all_slides, 1):
-        for shape in slide.slide_layout.shapes:  # type: ignore
-            if not shape.has_text_frame:
-                continue
-            if text in shape.text_frame.text:
+            if pattern in shape.text_frame.text or re.match(
+                pattern, shape.text_frame.text
+            ):
                 subset[i] = slide
     return subset
 
@@ -307,13 +346,10 @@ def section_headers(all_slides: Iterable[Slide]) -> SlideSubset:
         list[Slide]: List of slides matching the subset
     """
     text = "order of service"
-    return {
-        **get_slide_subset_with_text(all_slides, text),
-        **get_slide_subset_with_master(all_slides, text),
-    }
+    return get_slides_by_pattern(all_slides, text)
 
 
-def get_raw_text_from_slides(slides: SlideSubset) -> dict[int, str]:
+def get_raw_text_from_slides(slides: SlideSubset) -> dict[int, list[str]]:
     """
     Returns the raw text from any shapes (including text boxes) in the provided slides.
 
@@ -321,18 +357,30 @@ def get_raw_text_from_slides(slides: SlideSubset) -> dict[int, str]:
         slides (list[Slide]): List of slides
 
     Returns:
-        list[str]: List of strings in these slides
+        dict[int, list[str]]: Raw string extracts according to slide number
     """
-    return {
-        i: shape.text_frame.text
-        for i, slide in slides.items()
-        for shape in slide.shapes  # type: ignore
-    }
+    result = {}
+    for i, slide in slides.items():
+        for shape in [*slide.shapes, *slide.slide_layout.shapes]:  # type: ignore
+            if i in result:
+                result[i].append(shape.text_frame.text)
+            else:
+                result[i] = [shape.text_frame.text]
+    return result
 
 
 def slide_order_of_service(section_headers: SlideSubset) -> dict[int, list[str]]:
-    def filter_order_of_service_only(texts: dict[int, str]) -> dict[int, str]:
-        return {i: item for i, item in texts.items() if "order of service" in item}
+    def filter_order_of_service_only(
+        texts: dict[int, list[str]]
+    ) -> dict[int, list[str]]:
+        result = {}
+        for i, item_list in texts.items():
+            for item in item_list:
+                if "order of service" in item:
+                    result[i].append(item)
+                else:
+                    result[i] = [item]
+        return result
 
     def split_and_strip(text: str) -> list[str]:
         """
@@ -348,7 +396,11 @@ def slide_order_of_service(section_headers: SlideSubset) -> dict[int, list[str]]
 
     section_header_text = get_raw_text_from_slides(section_headers)
     orders_of_service = filter_order_of_service_only(section_header_text)
-    return {i: split_and_strip(item) for i, item in orders_of_service.items()}
+    return {
+        i: split_and_strip(item)
+        for i, item_list in orders_of_service.items()
+        for item in item_list
+    }
 
 
 if __name__ == "__main__":
@@ -357,9 +409,9 @@ if __name__ == "__main__":
         pptx = Presentation(f)
 
     cc = ContentChecker(
-        selected_date="22 May 2022",
+        selected_date="21 May 2022",
         req_order_of_service=raw_req_order_of_service_no_declaration(),
         sermon_discussion_qns="",
         presentations=[pptx],
     )
-    result = cc.run()
+    results = cc.run()
