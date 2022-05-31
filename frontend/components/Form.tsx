@@ -2,14 +2,14 @@ import moment from 'moment';
 import React from 'react';
 import styles from '../styles/Form.module.css';
 import {
-    Alert,
-    Button,
-    DatePicker,
-    Input,
-    message,
-    Space,
-    Upload
-    } from 'antd';
+  Alert,
+  Button,
+  DatePicker,
+  Input,
+  message,
+  Space,
+  Upload
+  } from 'antd';
 import { InboxOutlined, UploadOutlined } from '@ant-design/icons';
 import { RcFile } from 'antd/lib/upload';
 import { SetSettings, Settings, SlidesResponse } from '../types';

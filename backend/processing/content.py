@@ -185,24 +185,24 @@ class ContentChecker(Checker):
                 title, comments = req_order_of_service[index]
                 required_item = f"{title} \u2013 {comments}"
                 is_commented_item = re.match(matched_text, entry)
-                is_close_match = fuzz.partial_ratio(required_item, entry)
+                partial_ratio = fuzz.partial_ratio(required_item, entry)
 
                 if is_commented_item is not None:
                     is_commented_items_correct = required_item == entry
                     if is_commented_items_correct:
                         index += 1
                         continue
-                    if 90 < is_close_match and is_close_match < 100:
+                    elif 90 < partial_ratio < 100:
                         item = {
                             "title": "Is there a typo?",
                             "status": Status.WARNING,
-                            "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. Partial ratio = {is_close_match}",
+                            "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. Similarity score = {partial_ratio} of 100",
                         }
                         index += 1
                     else:
                         item = {
                             "title": "Check section headers are in the correct order",
-                            "comments": f"Slide {i} does not match the required order of service.",
+                            "comments": f"On Slide {i}, Expected: '{required_item}'. Provides: '{entry}'. Similarity score = {partial_ratio} of 100",
                             "status": Status.ERROR,
                         }
                     if item not in result:
@@ -283,7 +283,7 @@ def get_slide_subset_with_text(all_slides: Iterable[Slide], text: str) -> SlideS
     return subset
 
 
-def get_slide_subset_with_master(all_slides, text="order of service") -> SlideSubset:
+def get_slide_subset_with_master(all_slides: Iterable[Slide], text: str) -> SlideSubset:
     subset = dict()
     for i, slide in enumerate(all_slides, 1):
         for shape in slide.slide_layout.shapes:  # type: ignore
