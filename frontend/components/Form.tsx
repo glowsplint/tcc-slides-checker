@@ -13,6 +13,7 @@ import {
 import { InboxOutlined, UploadOutlined } from '@ant-design/icons';
 import { RcFile } from 'antd/lib/upload';
 import { SetSettings, Settings, SlidesResponse } from '../types';
+import { useRouter } from 'next/router';
 import { useSettings } from '../contexts/settings';
 
 
@@ -146,6 +147,12 @@ const DateSelector = () => {
       placeholder="Select date of Sunday service."
       onChange={onChange}
       status={settings.selectedDate.error ? "error" : ""}
+      defaultValue={
+        settings.selectedDate.value
+          ? moment(settings.selectedDate.value)
+          : undefined
+      }
+      format="DD MMM YYYY"
     />
   );
 };
@@ -237,6 +244,7 @@ const FileUploadInput = () => {
 
 const UploadButton = () => {
   const { settings, setSettings } = useSettings();
+  const router = useRouter();
   const onClickUpload: React.MouseEventHandler = async () => {
     /**
      * Sends the POST request, extracts the output files from the response,
@@ -256,6 +264,7 @@ const UploadButton = () => {
     setIsLoading(setSettings, true);
     const response = getResponse(settings);
     const responseJson = await (await response).json();
+    router.push("/results");
     setResponse(setSettings, responseJson);
     setIsLoading(setSettings, false);
   };

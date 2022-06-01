@@ -213,7 +213,7 @@ class ContentChecker(Checker):
                     result = {
                         "title": "Is there a typo?",
                         "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. The use of the unicode character U+2018 (\u2018) is triggering this warning; replace this character with U+2019 (\u2019) or a standard single quote (') to resolve this error. Similarity score = {partial_ratio} of 100",
-                        "status": Status.ERROR,
+                        "status": Status.WARNING,
                     }
                     results.append(result)
                     index += 1

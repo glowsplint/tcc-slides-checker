@@ -32,10 +32,9 @@ const CardTitle = ({
   );
 };
 
-const WarningCard = ({ result, key }: { result: Result; key: number }) => {
+const WarningCard = ({ result }: { result: Result }) => {
   return (
     <Card
-      key={key}
       type="inner"
       headStyle={{ backgroundColor: "#fbb360" }}
       title={
@@ -51,10 +50,9 @@ const WarningCard = ({ result, key }: { result: Result; key: number }) => {
   );
 };
 
-const ErrorCard = ({ result, key }: { result: Result; key: number }) => {
+const ErrorCard = ({ result }: { result: Result }) => {
   return (
     <Card
-      key={key}
       headStyle={{ backgroundColor: "#cd4246" }}
       type="inner"
       title={
@@ -70,10 +68,9 @@ const ErrorCard = ({ result, key }: { result: Result; key: number }) => {
   );
 };
 
-const PassCard = ({ result, key }: { result: Result; key: number }) => {
+const PassCard = ({ result }: { result: Result }) => {
   return (
     <Card
-      key={key}
       headStyle={{ backgroundColor: "#238551" }}
       type="inner"
       title={
@@ -94,19 +91,14 @@ const Results = () => {
   return (
     <>
       {settings.results?.map((result, index) => {
-        let component: React.ReactElement = <></>;
         switch (result.status) {
           case "Warning":
-            component = <WarningCard result={result} key={index} />;
-            break;
+            return <WarningCard result={result} key={index} />;
           case "Error":
-            component = <ErrorCard result={result} key={index} />;
-            break;
+            return <ErrorCard result={result} key={index} />;
           case "Passing":
-            component = <PassCard result={result} key={index} />;
-            break;
+            return <PassCard result={result} key={index} />;
         }
-        return <>{component}</>;
       })}
     </>
   );
