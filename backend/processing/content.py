@@ -292,19 +292,21 @@ class ContentChecker(Checker):
                 partial_ratio = fuzz.partial_ratio(item, date)
                 if re.match(date_pattern, item) and item.replace(
                     "_", " "
-                ) == date.replace("_", " "):
-                    result: Result = {
+                ) != date.replace("_", " "):
+                    result = {
                         "title": "Check all dates that appear in the slides are the same as the date of Sunday service.",
                         "status": Status.ERROR,
                         "comments": f"On slide {i}, Expected: '{date}'. Provided: '{item}'. Similarity score = {partial_ratio} of 100",
                     }
-                else:
-                    result: Result = {
-                        "title": "Check all dates that appear in the slides are the same as the date of Sunday service.",
-                        "status": Status.PASS,
-                        "comments": "All slides containing dates display the required date of Sunday service.",
-                    }
                     results.append(result)
+
+        if len(results) == 0:
+            result = {
+                "title": "Check all dates that appear in the slides are the same as the date of Sunday service.",
+                "status": Status.PASS,
+                "comments": "All slides containing dates display the required date of Sunday service.",
+            }
+            results.append(result)
 
         return results
 
@@ -409,7 +411,7 @@ if __name__ == "__main__":
         pptx = Presentation(f)
 
     cc = ContentChecker(
-        selected_date="21 May 2022",
+        selected_date="22 May 2022",
         req_order_of_service=raw_req_order_of_service_no_declaration(),
         sermon_discussion_qns="",
         presentations=[pptx],
