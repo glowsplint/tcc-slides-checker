@@ -1,21 +1,12 @@
-import moment from 'moment';
-import React from 'react';
-import styles from '../styles/Form.module.css';
-import {
-  Alert,
-  Button,
-  DatePicker,
-  Input,
-  message,
-  Space,
-  Upload
-  } from 'antd';
-import { InboxOutlined, UploadOutlined } from '@ant-design/icons';
-import { RcFile } from 'antd/lib/upload';
-import { SetSettings, Settings, SlidesResponse } from '../types';
-import { useRouter } from 'next/router';
-import { useSettings } from '../contexts/settings';
-
+import moment from "moment";
+import React from "react";
+import styles from "../styles/Form.module.css";
+import { Alert, Button, DatePicker, Input, message, Space, Upload } from "antd";
+import { InboxOutlined, UploadOutlined } from "@ant-design/icons";
+import { RcFile } from "antd/lib/upload";
+import { SetSettings, Settings, SlidesResponse } from "../types";
+import { useRouter } from "next/router";
+import { useSettings } from "../contexts/settings";
 
 const { TextArea } = Input;
 const { Dragger } = Upload;
@@ -149,7 +140,7 @@ const DateSelector = () => {
       status={settings.selectedDate.error ? "error" : ""}
       defaultValue={
         settings.selectedDate.value
-          ? moment(settings.selectedDate.value)
+          ? moment(settings.selectedDate.value, "DD MMM YYYY")
           : undefined
       }
       format="DD MMM YYYY"
@@ -177,6 +168,7 @@ const OrderOfServiceInput = () => {
       autoSize={{ minRows: 2 }}
       onChange={onChange}
       status={settings.orderOfService.error ? "error" : ""}
+      defaultValue={settings.orderOfService.value}
     />
   );
 };
@@ -201,6 +193,7 @@ const SermonDiscussionQnsInput = () => {
       autoSize
       onChange={onChange}
       status={settings.sermonDiscussionQns.error ? "error" : ""}
+      defaultValue={settings.sermonDiscussionQns.value}
     />
   );
 };
@@ -208,13 +201,12 @@ const SermonDiscussionQnsInput = () => {
 const props = (setSettings: SetSettings) => {
   return {
     name: "file",
-    maxCount: 1,
     multiple: true,
     accept:
       "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     beforeUpload: (file: File, fileList: RcFile[]) => {
       setSettings((previous) => {
-        return { ...previous, files: { value: [file], error: false } };
+        return { ...previous, files: { value: fileList, error: false } };
       });
       // Prevent upload
       return false;

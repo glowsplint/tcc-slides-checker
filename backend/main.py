@@ -29,10 +29,8 @@ def set_appropriate_middleware(mode: bool) -> None:
         origins = [
             "http://127.0.0.1:3000",
             "http://127.0.0.1:5000",
-            "http://127.0.0.1:8000",
             "http://localhost:3000",
             "http://localhost:5000",
-            "http://localhost:8000",
         ]
 
         app.add_middleware(
@@ -66,17 +64,23 @@ async def upload_handler(
 ) -> dict:
     """
     Primary endpoint which handles the POST request.
+
     Args:
         files (list[UploadFile], optional): User-uploaded input files. Defaults to File(...).
+
     Returns:
-        FileResponse: Excel spreadsheet output
+        dict: JSON response containing the test results
     """
-    with files[0].file as f:
-        presentations = Presentation(pptx=io.BytesIO(f.read()))
+    presentations = []
+    for file in files:
+        with file.file as f:
+            bytes_io = io.BytesIO(f.read())
+            presentations.append(Presentation(pptx=bytes_io))
+
     cc = ContentChecker(
         selected_date=selected_date,
         req_order_of_service=req_order_of_service,
         sermon_discussion_qns=sermon_discussion_qns,
-        presentations=[presentations],
+        presentations=presentations,
     )
     return {"results": cc.run()}

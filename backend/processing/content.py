@@ -108,7 +108,7 @@ class ContentChecker(Checker):
     """
 
     def __init__(
-        self, selected_date, req_order_of_service, sermon_discussion_qns, presentations
+        self, selected_date: str, req_order_of_service: str, sermon_discussion_qns: str, presentations: list
     ) -> None:
         self.selected_date = selected_date
         self.req_order_of_service = req_order_of_service
