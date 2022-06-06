@@ -1,3 +1,4 @@
+import { RcFile } from 'antd/lib/upload/interface';
 import { SetStateAction } from 'react';
 
 interface ValueAndError<T> {
@@ -5,7 +6,7 @@ interface ValueAndError<T> {
   error: boolean;
 }
 interface Settings {
-  files: ValueAndError<File[]>;
+  files: ValueAndError<RcFile[]>;
   isLoading: boolean;
   orderOfService: ValueAndError<string>;
   selectedDate: ValueAndError<string>;

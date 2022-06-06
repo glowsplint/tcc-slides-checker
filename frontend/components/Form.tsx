@@ -1,12 +1,22 @@
-import moment from "moment";
-import React from "react";
-import styles from "../styles/Form.module.css";
-import { Alert, Button, DatePicker, Input, message, Space, Upload } from "antd";
-import { InboxOutlined, UploadOutlined } from "@ant-design/icons";
-import { RcFile } from "antd/lib/upload";
-import { SetSettings, Settings, SlidesResponse } from "../types";
-import { useRouter } from "next/router";
-import { useSettings } from "../contexts/settings";
+import moment from 'moment';
+import React from 'react';
+import styles from '../styles/Form.module.css';
+import {
+  Alert,
+  Button,
+  DatePicker,
+  Input,
+  message,
+  Space,
+  Upload
+  } from 'antd';
+import { InboxOutlined, UploadOutlined } from '@ant-design/icons';
+import { RcFile } from 'antd/lib/upload';
+import { SetSettings, Settings, SlidesResponse } from '../types';
+import { UploadFile } from 'antd/lib/upload/interface';
+import { useRouter } from 'next/router';
+import { useSettings } from '../contexts/settings';
+
 
 const { TextArea } = Input;
 const { Dragger } = Upload;
@@ -198,18 +208,37 @@ const SermonDiscussionQnsInput = () => {
   );
 };
 
-const props = (setSettings: SetSettings) => {
+const props = (settings: Settings, setSettings: SetSettings) => {
+  const defaultFileList = (settings: Settings) => {
+    // Provides a default file list to be displayed on page load
+    // Primarily useful when going back and forth from the results page
+    return settings.files.value.map((file) => {
+      return {
+        uid: file.uid,
+        name: file.name,
+      };
+    });
+  };
   return {
     name: "file",
     multiple: true,
     accept:
       "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    beforeUpload: (file: File, fileList: RcFile[]) => {
+    beforeUpload: (_: File, fileList: RcFile[]) => {
       setSettings((previous) => {
         return { ...previous, files: { value: fileList, error: false } };
       });
       // Prevent upload
       return false;
+    },
+    defaultFileList: defaultFileList(settings),
+    onRemove: (file: UploadFile) => {
+      setSettings((previous) => {
+        const fileList = previous.files.value.filter(
+          (item) => item.uid !== file.uid
+        );
+        return { ...previous, files: { value: fileList, error: false } };
+      });
     },
   };
 };
@@ -218,7 +247,7 @@ const FileUploadInput = () => {
   const { settings, setSettings } = useSettings();
   return (
     <>
-      <Dragger {...props(setSettings)}>
+      <Dragger {...props(settings, setSettings)}>
         <p className="ant-upload-drag-icon">
           <InboxOutlined />
         </p>
