@@ -1,39 +1,19 @@
 import os
 import re
-from enum import Enum
 from functools import cached_property
 from pathlib import Path
-from typing import Iterable, TypedDict
+from typing import Iterable
+
+from backend.processing.result import Result, Status
 
 if __name__ == "__main__":
     if Path(os.getcwd()).name == "processing":
         os.chdir("../..")
 
-from backend.processing.checker import Checker
+from backend.processing.checker.base import BaseChecker
 from pptx import Presentation
 from pptx.slide import Slide
 from thefuzz import fuzz
-
-
-class Status(str, Enum):
-    ERROR = "Error"
-    WARNING = "Warning"
-    PASS = "Passing"
-
-    def __repr__(self):
-        if self == Status.ERROR:
-            return "Error"
-        elif self == Status.WARNING:
-            return "Warning"
-        elif self == Status.PASS:
-            return "Pass"
-
-
-class Result(TypedDict):
-    title: str
-    comments: str
-    status: Status
-
 
 SlideSubset = dict[int, Slide]
 
@@ -102,7 +82,7 @@ def filter_clean_req_order_of_service(
     ]
 
 
-class ContentChecker(Checker):
+class ContentChecker(BaseChecker):
     """
     Checks the content of the uploaded slides according to the inputs.
     """
@@ -237,7 +217,7 @@ class ContentChecker(Checker):
 
     def check_family_confession_content_matches_number(
         self, req_order_of_service: tuple[str, str]
-    ):
+    ) -> list[Result]:
         """
         Test family confession has the correct contents by checking that the words on the
         slide match the required content (usually a #number) specified in the order of
@@ -248,12 +228,12 @@ class ContentChecker(Checker):
         # 1. Identify the family confession slides
         # 2. Check that there is a text box on the page that contains the family confession
         # 3. Check that it matches the number
-        pass
+        raise NotImplementedError
 
     def check_family_declaration_content_matches_number(
         self,
         req_order_of_service: tuple[str, str],
-    ):
+    ) -> list[Result]:
         """
         Test that family declaration (if present) has the correct contents by checking that
         the words on the slide match the required content (usually a #number) specified in
@@ -261,11 +241,11 @@ class ContentChecker(Checker):
 
         Family Declaration is an optional item in the order of service.
         """
-        pass
+        raise NotImplementedError
 
     def check_all_lyric_slides_have_no_title(
         self, req_order_of_service: tuple[str, str]
-    ):
+    ) -> list[Result]:
         """
         Test all lyric slides do not contain a title.
 
@@ -273,9 +253,9 @@ class ContentChecker(Checker):
         """
         # 1. Identify the lyric slides for the opening and closing song
         # 2. Check that the title is not present (i.e. none of the text boxes contain the song title exclusively)
-        pass
+        raise NotImplementedError
 
-    def check_all_dates_are_as_provided(self, date: str):
+    def check_all_dates_are_as_provided(self, date: str) -> list[Result]:
         """
         Test all dates that appear in the presentation are equal to the date of Sunday service.
 
@@ -313,6 +293,11 @@ class ContentChecker(Checker):
             results.append(result)
 
         return results
+
+    def check_sermon_discussion_qns_are_as_provided(
+        self, sermon_discussion_qns: str
+    ) -> list[Result]:
+        raise NotImplementedError
 
 
 def get_slides_by_pattern(all_slides: Iterable[Slide], pattern: str) -> SlideSubset:

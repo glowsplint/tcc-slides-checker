@@ -1,6 +1,7 @@
 import React from 'react';
 import styles from '../styles/Results.module.css';
 import { Card, Typography } from 'antd';
+import { NextPage } from 'next';
 import { Result } from '../types';
 import { useSettings } from '../contexts/settings';
 import {
@@ -86,7 +87,7 @@ const PassCard = ({ result }: { result: Result }) => {
   );
 };
 
-const Results = () => {
+const Results: NextPage = () => {
   const { settings } = useSettings();
   return (
     <>

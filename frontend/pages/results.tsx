@@ -1,24 +1,29 @@
+import Layout from '../components/Layout';
+import Link from 'next/link';
 import React from 'react';
 import Results from '../components/Results';
-import { Button } from 'antd';
-import { CaretLeftOutlined } from '@ant-design/icons';
+import { Empty } from 'antd';
 import { NextPage } from 'next';
-import { useRouter } from 'next/router';
+import { useSettings } from '../contexts/settings';
 
-const BackButton = () => {
-  const router = useRouter();
-  const onClick = () => {
-    router.push("/");
-  };
-  return <Button icon={<CaretLeftOutlined />} onClick={onClick} />;
+const NoResults = () => {
+  return (
+    <Empty
+      description={
+        <span>
+          There are no results to be displayed. Please return to the{" "}
+          <Link href="/">
+            <a>main page</a>
+          </Link>
+          .
+        </span>
+      }
+    ></Empty>
+  );
 };
 
 const ResultsPage: NextPage = () => {
-  return (
-    <>
-      <BackButton />
-      <Results />
-    </>
-  );
+  const { settings } = useSettings();
+  return <Layout>{settings.results ? <Results /> : <NoResults />}</Layout>;
 };
 export default ResultsPage;

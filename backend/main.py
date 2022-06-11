@@ -11,7 +11,7 @@ from pptx import Presentation
 from pydantic import BaseModel
 
 from backend.metadata import metadata
-from backend.processing.content import ContentChecker, Result
+from backend.processing.checker.content import ContentChecker, Result
 
 DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE")
 app = FastAPI(**metadata)
