@@ -4,13 +4,12 @@ from functools import cached_property
 from pathlib import Path
 from typing import Iterable
 
-from backend.processing.result import Result, Status
-
 if __name__ == "__main__":
-    if Path(os.getcwd()).name == "processing":
-        os.chdir("../..")
+    if Path(os.getcwd()).parent.name == "processing":
+        os.chdir("../../..")
 
 from backend.processing.checker.base import BaseChecker
+from backend.processing.result import Result, Status
 from pptx import Presentation
 from pptx.slide import Slide
 from thefuzz import fuzz
@@ -126,7 +125,19 @@ class ContentChecker(BaseChecker):
             ),
             *self.check_all_dates_are_as_provided(date=self.selected_date),
         ]
-        return result
+        return self.sorted(result)
+
+    def sorted(self, result: list[Result]) -> list[Result]:
+        """
+        Sorts results with the following precedence: Errors, Warnings, Passes.
+
+        Args:
+            result (list[Result]): Unsorted list of results
+
+        Returns:
+            list[Result]: Sorted list of results
+        """
+        return sorted(result, key=lambda x: x["status"], reverse=True)
 
     def check_existence_of_section_headers(
         self, section_headers: SlideSubset

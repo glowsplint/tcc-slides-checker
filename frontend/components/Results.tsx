@@ -87,17 +87,23 @@ const PassCard = ({ result }: { result: Result }) => {
   );
 };
 
+enum Status {
+  ERROR = 2,
+  WARNING = 1,
+  PASS = 0,
+}
+
 const Results: NextPage = () => {
   const { settings } = useSettings();
   return (
     <>
       {settings.results?.map((result, index) => {
-        switch (result.status) {
-          case "Warning":
+        switch (Number(result.status)) {
+          case Status.WARNING:
             return <WarningCard result={result} key={index} />;
-          case "Error":
+          case Status.ERROR:
             return <ErrorCard result={result} key={index} />;
-          case "Passing":
+          case Status.PASS:
             return <PassCard result={result} key={index} />;
         }
       })}
