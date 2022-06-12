@@ -1,8 +1,10 @@
 import React from 'react';
 import styles from '../styles/Results.module.css';
 import { Card, Typography } from 'antd';
+import { Collapse } from 'antd';
 import { NextPage } from 'next';
 import { Result } from '../types';
+import { Status } from '../enums';
 import { useSettings } from '../contexts/settings';
 import {
   CheckCircleOutlined,
@@ -12,6 +14,7 @@ import {
 
 
 const { Text } = Typography;
+const { Panel } = Collapse;
 
 const CardTitle = ({
   result,
@@ -87,27 +90,27 @@ const PassCard = ({ result }: { result: Result }) => {
   );
 };
 
-enum Status {
-  ERROR = 2,
-  WARNING = 1,
-  PASS = 0,
-}
-
 const Results: NextPage = () => {
   const { settings } = useSettings();
   return (
-    <>
-      {settings.results?.map((result, index) => {
-        switch (Number(result.status)) {
-          case Status.WARNING:
-            return <WarningCard result={result} key={index} />;
-          case Status.ERROR:
-            return <ErrorCard result={result} key={index} />;
-          case Status.PASS:
-            return <PassCard result={result} key={index} />;
-        }
+    <Collapse>
+      {settings.fileResults?.map((fileResult) => {
+        return (
+          <Panel header={fileResult.filename} key={fileResult.filename}>
+            {fileResult.results.map((result, index) => {
+              switch (Number(result.status)) {
+                case Status.WARNING:
+                  return <WarningCard result={result} key={index} />;
+                case Status.ERROR:
+                  return <ErrorCard result={result} key={index} />;
+                case Status.PASS:
+                  return <PassCard result={result} key={index} />;
+              }
+            })}
+          </Panel>
+        );
       })}
-    </>
+    </Collapse>
   );
 };
 

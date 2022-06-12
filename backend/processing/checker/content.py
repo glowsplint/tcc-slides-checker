@@ -1,6 +1,5 @@
 import os
 import re
-from functools import cached_property
 from pathlib import Path
 from typing import Iterable
 
@@ -9,9 +8,10 @@ if __name__ == "__main__":
         os.chdir("../../..")
 
 from backend.processing.checker.base import BaseChecker
-from backend.processing.result import Result, Status
-from pptx import Presentation
-from pptx.slide import Slide
+from backend.processing.result import FileResults, Result, Status
+from pptx import Presentation as PresentationConstructor
+from pptx.presentation import Presentation
+from pptx.slide import Slide, Slides
 from thefuzz import fuzz
 
 SlideSubset = dict[int, Slide]
@@ -91,39 +91,43 @@ class ContentChecker(BaseChecker):
         selected_date: str,
         req_order_of_service: str,
         sermon_discussion_qns: str,
-        presentations: list,
+        presentations: dict[str, Presentation],
     ) -> None:
         self.selected_date = selected_date
         self.req_order_of_service = req_order_of_service
         self.sermon_discussion_qns = sermon_discussion_qns
         self.presentations = presentations
 
-    @cached_property
-    def pptx(self):
-        # TODO: extend to multiple presentations
-        return self.presentations[0]
+    def run(self) -> list[FileResults]:
+        file_results = []
+        for name, pptx in self.presentations.items():
+            file_results.append(
+                {"filename": name, "results": self.run_single(pptx=pptx)}
+            )
+        return file_results
 
-    def run(self) -> list[Result]:
+    def run_single(self, pptx: Presentation) -> list[Result]:
         """
         Runs all the checks within the ContentChecker.
 
         Returns:
             list[dict[str,str]]: List of dictionaries containing 'title' and 'description' keys
         """
+        slides = [slide for slide in pptx.slides]  # type: ignore
         clean_req_order_of_service = filter_clean_req_order_of_service(
             get_clean_req_order_of_service(self.req_order_of_service)
         )
         result = [
             self.check_existence_of_section_headers(
-                section_headers=section_headers(self.pptx.slides)
+                section_headers=section_headers(slides)
             ),
             *self.check_section_headers_have_correct_order(
                 req_order_of_service=clean_req_order_of_service,
-                slide_order_of_service=slide_order_of_service(
-                    section_headers(self.pptx.slides)
-                ),
+                slide_order_of_service=slide_order_of_service(section_headers(slides)),
             ),
-            *self.check_all_dates_are_as_provided(date=self.selected_date),
+            *self.check_all_dates_are_as_provided(
+                date=self.selected_date, slides=slides  # type: ignore
+            ),
         ]
         return self.sorted(result)
 
@@ -266,7 +270,9 @@ class ContentChecker(BaseChecker):
         # 2. Check that the title is not present (i.e. none of the text boxes contain the song title exclusively)
         raise NotImplementedError
 
-    def check_all_dates_are_as_provided(self, date: str) -> list[Result]:
+    def check_all_dates_are_as_provided(
+        self, date: str, slides: Slides
+    ) -> list[Result]:
         """
         Test all dates that appear in the presentation are equal to the date of Sunday service.
 
@@ -280,7 +286,7 @@ class ContentChecker(BaseChecker):
             date (str): Date of Sunday service
         """
         date_pattern = "\\d+[\\s-][A-Za-z]+[\\s-]\\d+"
-        slides_with_dates = get_slides_by_pattern(self.pptx.slides, date_pattern)
+        slides_with_dates = get_slides_by_pattern(slides, date_pattern)
         results = []
         for i, item_list in get_raw_text_from_slides(slides_with_dates).items():
             for item in item_list:
@@ -408,12 +414,12 @@ def slide_order_of_service(section_headers: SlideSubset) -> dict[int, list[str]]
 if __name__ == "__main__":
     # with open("input/01.05 (9am) service slides.pptx", "rb") as f:
     with open("input/22.05 (10.30am) service slides.pptx", "rb") as f:
-        pptx = Presentation(f)
+        pptx = PresentationConstructor(f)
 
     cc = ContentChecker(
         selected_date="22 May 2022",
         req_order_of_service=raw_req_order_of_service_no_declaration(),
         sermon_discussion_qns="",
-        presentations=[pptx],
+        presentations={"22.05 (10.30am) service slides.pptx": pptx},
     )
     results = cc.run()

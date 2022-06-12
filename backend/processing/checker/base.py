@@ -5,5 +5,5 @@ from backend.processing.result import Result
 
 class BaseChecker(abc.ABC):
     @abc.abstractmethod
-    def run(self) -> list[Result]:
+    def run_single(self) -> list[Result]:
         pass

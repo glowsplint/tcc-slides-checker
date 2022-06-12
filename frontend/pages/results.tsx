@@ -24,6 +24,6 @@ const NoResults = () => {
 
 const ResultsPage: NextPage = () => {
   const { settings } = useSettings();
-  return <Layout>{settings.results ? <Results /> : <NoResults />}</Layout>;
+  return <Layout>{settings.fileResults ? <Results /> : <NoResults />}</Layout>;
 };
 export default ResultsPage;

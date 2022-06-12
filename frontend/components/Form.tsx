@@ -10,9 +10,9 @@ import {
   Space,
   Upload
   } from 'antd';
+import { FileResult, SetSettings, Settings } from '../types';
 import { InboxOutlined, UploadOutlined } from '@ant-design/icons';
 import { RcFile } from 'antd/lib/upload';
-import { SetSettings, Settings, SlidesResponse } from '../types';
 import { UploadFile } from 'antd/lib/upload/interface';
 import { useRouter } from 'next/router';
 import { useSettings } from '../contexts/settings';
@@ -79,13 +79,9 @@ const setIsLoading = (setSettings: SetSettings, bool: boolean) => {
   });
 };
 
-const setResponse = (
-  setSettings: SetSettings,
-  responseJson: SlidesResponse
-) => {
-  const { results } = responseJson;
+const setResponse = (setSettings: SetSettings, fileResults: FileResult[]) => {
   setSettings((previous) => {
-    return { ...previous, results };
+    return { ...previous, fileResults };
   });
 };
 

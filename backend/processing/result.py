@@ -1,4 +1,3 @@
-
 from enum import Enum
 from typing import TypedDict
 
@@ -20,8 +19,12 @@ class Status(Enum):
         return self.value < other.value
 
 
-
 class Result(TypedDict):
     title: str
     comments: str
     status: Status
+
+
+class FileResults(TypedDict):
+    filename: str
+    results: list[Result]

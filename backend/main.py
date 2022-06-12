@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from backend.metadata import metadata
 from backend.processing.checker.content import ContentChecker, Result
+from backend.processing.result import FileResults
 
 DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE")
 app = FastAPI(**metadata)
@@ -61,7 +62,7 @@ async def upload_handler(
     req_order_of_service: str = Form(...),
     sermon_discussion_qns: str = Form(...),
     files: list[UploadFile] = File(...),
-) -> dict:
+) -> list[FileResults]:
     """
     Primary endpoint which handles the POST request.
 
@@ -71,11 +72,11 @@ async def upload_handler(
     Returns:
         dict: JSON response containing the test results
     """
-    presentations = []
+    presentations = dict()
     for file in files:
         with file.file as f:
             bytes_io = io.BytesIO(f.read())
-            presentations.append(Presentation(pptx=bytes_io))
+            presentations[file.filename] = Presentation(pptx=bytes_io)
 
     cc = ContentChecker(
         selected_date=selected_date,
@@ -83,4 +84,4 @@ async def upload_handler(
         sermon_discussion_qns=sermon_discussion_qns,
         presentations=presentations,
     )
-    return {"results": cc.run()}
+    return cc.run()

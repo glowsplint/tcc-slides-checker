@@ -1,17 +1,17 @@
 import { RcFile } from 'antd/lib/upload/interface';
 import { SetStateAction } from 'react';
 
-interface ValueAndError<T> {
+interface IValue<T> {
   value: T;
   error: boolean;
 }
 interface Settings {
-  files: ValueAndError<RcFile[]>;
+  files: IValue<RcFile[]>;
   isLoading: boolean;
-  orderOfService: ValueAndError<string>;
-  selectedDate: ValueAndError<string>;
-  sermonDiscussionQns: ValueAndError<string>;
-  results?: Result[];
+  orderOfService: IValue<string>;
+  selectedDate: IValue<string>;
+  sermonDiscussionQns: IValue<string>;
+  fileResults?: FileResult[];
 }
 
 type SetSettings = React.Dispatch<SetStateAction<Settings>>;
@@ -22,8 +22,9 @@ interface Result {
   status: string;
 }
 
-interface SlidesResponse {
+interface FileResult {
+  filename: string;
   results: Result[];
 }
 
-export type { Settings, SetSettings, Result, SlidesResponse };
+export type { Settings, SetSettings, Result, FileResult };
