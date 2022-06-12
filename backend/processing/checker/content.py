@@ -47,7 +47,7 @@ def get_clean_req_order_of_service(
         raw_req_order_of_service_no_declaration (str): Raw required order of service
 
     Returns:
-        list[tuple[str, int, str]]: _description_
+        list[tuple[str, int, str]]: Cleaned up required order of service
     """
     result, intermediate = [], []
     for item in raw_req_order_of_service_no_declaration.split("\n"):
@@ -69,16 +69,110 @@ def filter_clean_req_order_of_service(
         tuple[str, str]
 
     Args:
-        raw_req_order_of_service_no_declaration (str): Raw
+        raw_req_order_of_service_no_declaration (str): Raw order of service
 
     Returns:
-        list[tuple[str, str]]: _description_
+        list[tuple[str, str]]: Filtered clean required order of service
     """
     return [
         (section_mapping.get(item[0], item[0]), item[2])
         for item in clean_req_order_of_service
         if not re.match("(Opening Words|Dismissal|Closing Words)", item[0])
     ]
+
+
+def get_slides_by_pattern(all_slides: Iterable[Slide], pattern: str) -> SlideSubset:
+    """
+    Returns a subset of all slides that contain the provided text argument on the slide
+
+    Args:
+        all_slides (Iterable[Slide]): An iterable containing all slides
+        pattern (str): String to match
+
+    Returns:
+        SlideSubset: Subset of slides with slide number (1-indexed) as keys
+    """
+    subset = dict()
+    for i, slide in enumerate(all_slides, 1):
+        shapes = [*slide.shapes, *slide.slide_layout.shapes]  # type: ignore
+        for shape in shapes:
+            if not shape.has_text_frame:
+                continue
+            if pattern in shape.text_frame.text or re.match(
+                pattern, shape.text_frame.text
+            ):
+                subset[i] = slide
+    return subset
+
+
+def section_headers(all_slides: Iterable[Slide]) -> SlideSubset:
+    """
+    Section header slides are slides that contain the text "order of service".
+    This includes the Welcome slide, and all other item slides (i.e. Family Confession,
+    Family Prayer etc.)
+
+    Args:
+        all_slides (Iterable[Slide]): An iterable containing all slides
+
+    Returns:
+        SlideSubset: Subset of slides with slide number (1-indexed) as keys
+    """
+    text = "order of service"
+    return get_slides_by_pattern(all_slides, text)
+
+
+def get_raw_text_from_slides(slides: SlideSubset) -> dict[int, list[str]]:
+    """
+    Returns the raw text from any shapes (including text boxes) in the provided slides.
+
+    Args:
+        slides (list[Slide]): List of slides
+
+    Returns:
+        dict[int, list[str]]: Raw string extracts according to slide number
+    """
+    result = {}
+    for i, slide in slides.items():
+        for shape in [*slide.shapes, *slide.slide_layout.shapes]:  # type: ignore
+            if i in result:
+                result[i].append(shape.text_frame.text)
+            else:
+                result[i] = [shape.text_frame.text]
+    return result
+
+
+def slide_order_of_service(section_headers: SlideSubset) -> dict[int, list[str]]:
+    def filter_order_of_service_only(
+        texts: dict[int, list[str]]
+    ) -> dict[int, list[str]]:
+        result = {}
+        for i, item_list in texts.items():
+            for item in item_list:
+                if "order of service" in item:
+                    result[i].append(item)
+                else:
+                    result[i] = [item]
+        return result
+
+    def split_and_strip(text: str) -> list[str]:
+        """
+        Splits up raw text on newline characters and strips on both sides of the
+        resulting string.
+        """
+        split_text = re.split("\n+", text)
+        return [
+            item.strip()
+            for item in split_text
+            if len(item) and "order of service" not in item
+        ]
+
+    section_header_text = get_raw_text_from_slides(section_headers)
+    orders_of_service = filter_order_of_service_only(section_header_text)
+    return {
+        i: split_and_strip(item)
+        for i, item_list in orders_of_service.items()
+        for item in item_list
+    }
 
 
 class ContentChecker(BaseChecker):
@@ -108,10 +202,13 @@ class ContentChecker(BaseChecker):
 
     def run_single(self, pptx: Presentation) -> list[Result]:
         """
-        Runs all the checks within the ContentChecker.
+        Runs all the checks within the ContentChecker for a single Presentation instance.
+
+        Args:
+            pptx (Presentation): Presentation instance
 
         Returns:
-            list[dict[str,str]]: List of dictionaries containing 'title' and 'description' keys
+            list[Result]: List of Result dictionaries
         """
         slides = [slide for slide in pptx.slides]  # type: ignore
         clean_req_order_of_service = filter_clean_req_order_of_service(
@@ -146,6 +243,15 @@ class ContentChecker(BaseChecker):
     def check_existence_of_section_headers(
         self, section_headers: SlideSubset
     ) -> Result:
+        """
+        Test that there exists at least 1 section header slide in the presentation.
+
+        Args:
+            section_headers (SlideSubset): Subset of slides that are section headers
+
+        Returns:
+            Result: Result of this test
+        """
         result: Result = {
             "title": "Check existence of section header slides",
             "comments": f"{len(section_headers)} section header slides found.",
@@ -167,8 +273,11 @@ class ContentChecker(BaseChecker):
         These slides will usually have the order of service in grey on the right side.
 
         Args:
-            req_order_of_service (tuple[str, str]): Required order of service
-            slide_order_of_service (list[tuple[str, str]]): Order of services from slides
+            req_order_of_service (list[tuple[str, str]]): Required order of service
+            slide_order_of_service (dict[int, list[str]]): Order of services from slides
+
+        Returns:
+            list[Result]: List of results for this test
         """
         # 1. Identify the section header slides
         # 2. Extract the text from the slide
@@ -265,6 +374,12 @@ class ContentChecker(BaseChecker):
         Test all lyric slides do not contain a title.
 
         Lyric slides are slides for the opening and closing song.
+
+        Args:
+            req_order_of_service (tuple[str, str]): Required order of service
+
+        Returns:
+            list[Result]: List of Result dictionaries
         """
         # 1. Identify the lyric slides for the opening and closing song
         # 2. Check that the title is not present (i.e. none of the text boxes contain the song title exclusively)
@@ -284,6 +399,9 @@ class ContentChecker(BaseChecker):
 
         Args:
             date (str): Date of Sunday service
+
+        Returns:
+            list[Result]: List of Result dictionaries
         """
         date_pattern = "\\d+[\\s-][A-Za-z]+[\\s-]\\d+"
         slides_with_dates = get_slides_by_pattern(slides, date_pattern)
@@ -314,105 +432,20 @@ class ContentChecker(BaseChecker):
     def check_sermon_discussion_qns_are_as_provided(
         self, sermon_discussion_qns: str
     ) -> list[Result]:
+        """
+        Test that there is a slide containing the text "Sermon discussion questions".
+        Test that the bullet point questions on the slide match the required questions.
+
+        Args:
+            sermon_discussion_qns (str): Required sermon discussion questions
+
+        Returns:
+            list[Result]: List of results for this test
+        """
         raise NotImplementedError
 
 
-def get_slides_by_pattern(all_slides: Iterable[Slide], pattern: str) -> SlideSubset:
-    """
-    Returns a subset of all slides that contain the provided text argument on the slide
-
-    Args:
-        all_slides (Iterable[Slide]): An iterable containing all slides
-        pattern (str): String to match
-
-    Returns:
-        SlideSubset: Subset of slides with slide number (1-indexed) as keys
-    """
-    subset = dict()
-    for i, slide in enumerate(all_slides, 1):
-        shapes = [*slide.shapes, *slide.slide_layout.shapes]  # type: ignore
-        for shape in shapes:
-            if not shape.has_text_frame:
-                continue
-            if pattern in shape.text_frame.text or re.match(
-                pattern, shape.text_frame.text
-            ):
-                subset[i] = slide
-    return subset
-
-
-def section_headers(all_slides: Iterable[Slide]) -> SlideSubset:
-    """
-    Section header slides are slides that contain the text "Today's order of service".
-    This includes the Welcome slide, and all other item slides (i.e. Family Confession,
-    Family Prayer etc.)
-
-    Args:
-        all_slides (Iterable[Slide]): An iterable containing all slides
-
-    Returns:
-        list[Slide]: List of slides matching the subset
-    """
-    text = "order of service"
-    return get_slides_by_pattern(all_slides, text)
-
-
-def get_raw_text_from_slides(slides: SlideSubset) -> dict[int, list[str]]:
-    """
-    Returns the raw text from any shapes (including text boxes) in the provided slides.
-
-    Args:
-        slides (list[Slide]): List of slides
-
-    Returns:
-        dict[int, list[str]]: Raw string extracts according to slide number
-    """
-    result = {}
-    for i, slide in slides.items():
-        for shape in [*slide.shapes, *slide.slide_layout.shapes]:  # type: ignore
-            if i in result:
-                result[i].append(shape.text_frame.text)
-            else:
-                result[i] = [shape.text_frame.text]
-    return result
-
-
-def slide_order_of_service(section_headers: SlideSubset) -> dict[int, list[str]]:
-    def filter_order_of_service_only(
-        texts: dict[int, list[str]]
-    ) -> dict[int, list[str]]:
-        result = {}
-        for i, item_list in texts.items():
-            for item in item_list:
-                if "order of service" in item:
-                    result[i].append(item)
-                else:
-                    result[i] = [item]
-        return result
-
-    def split_and_strip(text: str) -> list[str]:
-        """
-        Splits up raw text on newline characters and strips on both sides of the
-        resulting string.
-        """
-        split_text = re.split("\n+", text)
-        return [
-            item.strip()
-            for item in split_text
-            if len(item) and "order of service" not in item
-        ]
-
-    section_header_text = get_raw_text_from_slides(section_headers)
-    orders_of_service = filter_order_of_service_only(section_header_text)
-    return {
-        i: split_and_strip(item)
-        for i, item_list in orders_of_service.items()
-        for item in item_list
-    }
-
-
 if __name__ == "__main__":
-    # with open("input/01.05 (9am) service slides.pptx", "rb") as f:
     with open("input/22.05 (10.30am) service slides.pptx", "rb") as f:
         pptx = PresentationConstructor(f)
 
