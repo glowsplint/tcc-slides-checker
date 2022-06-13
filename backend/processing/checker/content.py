@@ -1,7 +1,7 @@
 import os
 import re
 from pathlib import Path
-from typing import Iterable, cast
+from typing import Iterable
 
 if __name__ == "__main__":
     if Path(os.getcwd()).parent.name == "processing":
@@ -11,8 +11,7 @@ from backend.processing.checker.base import BaseChecker
 from backend.processing.result import FileResults, Result, Status
 from pptx import Presentation as PresentationConstructor
 from pptx.presentation import Presentation
-from pptx.shapes.shapetree import SlideShapes
-from pptx.slide import Slide, Slides
+from pptx.slide import Slide
 from thefuzz import fuzz
 
 SlideSubset = dict[int, Slide]
@@ -95,8 +94,7 @@ def get_slides_by_pattern(all_slides: Iterable[Slide], pattern: str) -> SlideSub
     """
     subset = dict()
     for i, slide in enumerate(all_slides, 1):
-        slide.shapes = cast(SlideShapes, slide.shapes)
-        shapes = [*slide.shapes, *slide.slide_layout.shapes]
+        shapes = [*slide.shapes, *slide.slide_layout.shapes]  # type: ignore
         for shape in shapes:
             if not shape.has_text_frame:
                 continue
@@ -149,8 +147,7 @@ def get_raw_text_from_slides(slides: SlideSubset) -> dict[int, list[str]]:
     """
     result = {}
     for i, slide in slides.items():
-        slide.shapes = cast(SlideShapes, slide.shapes)
-        for shape in [*slide.shapes, *slide.slide_layout.shapes]:
+        for shape in [*slide.shapes, *slide.slide_layout.shapes]:  # type: ignore
             if i in result:
                 result[i].append(shape.text_frame.text)
             else:
@@ -227,22 +224,20 @@ class ContentChecker(BaseChecker):
         Returns:
             list[Result]: List of Result dictionaries
         """
-        pptx.slides = cast(Slides, pptx.slides)
+        slides: list[Slide] = [slide for slide in pptx.slides]  # type: ignore
         clean_req_order_of_service = filter_clean_req_order_of_service(
             get_clean_req_order_of_service(self.req_order_of_service)
         )
         result = [
             self.check_existence_of_section_headers(
-                section_headers=section_headers(pptx.slides)
+                section_headers=section_headers(slides)
             ),
             *self.check_section_headers_have_correct_order(
                 req_order_of_service=clean_req_order_of_service,
-                slide_order_of_service=slide_order_of_service(
-                    section_headers(pptx.slides)
-                ),
+                slide_order_of_service=slide_order_of_service(section_headers(slides)),
             ),
             *self.check_all_dates_are_as_provided(
-                date=self.selected_date, slides=pptx.slides
+                date=self.selected_date, slides=slides
             ),
         ]
         return self.sorted(result)
@@ -273,7 +268,7 @@ class ContentChecker(BaseChecker):
         """
         result: Result = {
             "title": "Check existence of section header slides",
-            "comments": f"{len(section_headers)} section header slides found.",
+            "comments": f"Expected: >=1 section header slides. Provided: {len(section_headers)} section header slides found.",
             "status": Status.PASS if len(section_headers) > 0 else Status.ERROR,
         }
         return result
@@ -405,7 +400,7 @@ class ContentChecker(BaseChecker):
         raise NotImplementedError
 
     def check_all_dates_are_as_provided(
-        self, date: str, slides: Slides
+        self, date: str, slides: Iterable[Slide]
     ) -> list[Result]:
         """
         Test all dates that appear in the presentation are equal to the date of Sunday service.
@@ -448,11 +443,11 @@ class ContentChecker(BaseChecker):
 
         return results
 
-    def check_sermon_discussion_qns_exist(
+    def check_existence_of_lone_sermon_discussion_slide(
         self, sermon_discussion_slides: SlideSubset
     ) -> Result:
         """
-        Test that there exists at least 1 sermon discussion slide in the presentation.
+        Test that there exists exactly 1 sermon discussion slide in the presentation.
 
         Args:
             sermon_discussion_slides (SlideSubset): Subset of slides that are sermon discussion slides
@@ -462,15 +457,15 @@ class ContentChecker(BaseChecker):
         """
         result: Result = {
             "title": "Check existence of sermon discussion slides.",
-            "comments": f"{len(sermon_discussion_slides)} sermon discussion slides found.",
+            "comments": f"Expected: 1 sermon discussion slide. Provided: {len(sermon_discussion_slides)} sermon discussion slides found.",
             "status": Status.PASS
-            if len(sermon_discussion_slides) > 0
+            if len(sermon_discussion_slides) == 1
             else Status.ERROR,
         }
         return result
 
     def check_sermon_discussion_qns_are_as_provided(
-        self, sermon_discussion_qns: str, slides: Slides
+        self, sermon_discussion_qns: str, sermon_discussion_slides: SlideSubset
     ) -> list[Result]:
         """
         Test that the bullet point questions on the slide match the required questions.
@@ -482,10 +477,6 @@ class ContentChecker(BaseChecker):
             list[Result]: List of results for this test
         """
         results = []
-        slides_with_sermon_discussion_qns = get_slides_by_pattern(
-            slides,
-            "Sermon discussion questions",
-        )
 
         raise NotImplementedError
 
