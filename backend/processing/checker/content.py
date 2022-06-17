@@ -21,10 +21,10 @@ section_mapping = {
     "Discuss in groups": "Sermon Discussion",
 }
 
-SlideSubset = dict[int, Slide]
-FilteredCleanOrderOfService = list[tuple[str, str]]
 CleanOrderOfService = list[tuple[str, int, str]]
+FilteredCleanOrderOfService = list[tuple[str, str]]
 SlideOrderOfService = dict[int, list[str]]
+SlideSubset = dict[int, Slide]
 
 
 def raw_req_order_of_service_no_declaration() -> str:
@@ -85,6 +85,11 @@ def filter_clean_req_order_of_service(
     ]
 
 
+def get_clean_sermon_discussion_qns(sermon_discussion_qns: str) -> list[str]:
+    split_text = re.split(r"\d+\.", sermon_discussion_qns)
+    return [text.strip() for text in split_text if text.strip()]
+
+
 def get_slides_by_pattern(all_slides: Iterable[Slide], pattern: str) -> SlideSubset:
     """
     Returns a subset of all slides that contain the provided text argument on the slide.
@@ -109,7 +114,7 @@ def get_slides_by_pattern(all_slides: Iterable[Slide], pattern: str) -> SlideSub
     return subset
 
 
-def get_raw_text_from_slides(slides: SlideSubset) -> dict[int, list[str]]:
+def get_raw_text_extracts_from_slides(slides: SlideSubset) -> dict[int, list[str]]:
     """
     Returns the raw text from any shapes (including text boxes) in the provided slides.
 
@@ -211,7 +216,7 @@ class ContentChecker(BaseChecker):
                 if len(item) and "order of service" not in item
             ]
 
-        section_header_text = get_raw_text_from_slides(section_headers)
+        section_header_text = get_raw_text_extracts_from_slides(section_headers)
         orders_of_service = filter_order_of_service_only(section_header_text)
         return {
             i: split_and_strip(item)
@@ -224,6 +229,10 @@ class ContentChecker(BaseChecker):
         return filter_clean_req_order_of_service(
             get_clean_req_order_of_service(self.raw_req_order_of_service)
         )
+
+    @cached_property
+    def cleaned_sermon_discussion_qns(self) -> list[str]:
+        return get_clean_sermon_discussion_qns(self.sermon_discussion_qns)
 
     def run(self) -> list[FileResults]:
         file_results = []
@@ -257,6 +266,9 @@ class ContentChecker(BaseChecker):
                 date=self.selected_date, slides=slides
             ),
             self.check_existence_of_lone_sermon_discussion_slide(
+                self.sermon_discussion_slides(slides)
+            ),
+            *self.check_sermon_discussion_qns_are_as_provided(
                 self.sermon_discussion_slides(slides)
             ),
         ]
@@ -438,7 +450,9 @@ class ContentChecker(BaseChecker):
         date_pattern = "\\d+[\\s-][A-Za-z]+[\\s-]\\d+"
         slides_with_dates = get_slides_by_pattern(slides, date_pattern)
         results = []
-        for i, item_list in get_raw_text_from_slides(slides_with_dates).items():
+        for i, item_list in get_raw_text_extracts_from_slides(
+            slides_with_dates
+        ).items():
             for item in item_list:
                 partial_ratio = fuzz.partial_ratio(item, date)
                 if re.match(date_pattern, item) and item.replace(
@@ -483,28 +497,73 @@ class ContentChecker(BaseChecker):
         return result
 
     def check_sermon_discussion_qns_are_as_provided(
-        self, sermon_discussion_qns: str, sermon_discussion_slides: SlideSubset
+        self, sermon_discussion_slides: SlideSubset
     ) -> list[Result]:
         """
-        Test that the bullet point questions on the slide match the required questions.
+        Test that the required questions appear in the sermon discussion slide.
+        Ignores numbering (i.e. 1. and 2.) and checks sentences directly.
 
         Args:
-            sermon_discussion_qns (str): Required sermon discussion questions
+            sermon_discussion_slides (SlideSubset): Sermon discussion slides
 
         Returns:
-            list[Result]: List of results for this test
+            list[Result]: List of Result dictionaries
         """
-        raise NotImplementedError
+        # consider using ndiff
+        # 1. Get the sermon discussion slides
+        # 2. Check questions are in these slides
+        raw_text_extracts = get_raw_text_extracts_from_slides(sermon_discussion_slides)
+        slide_number = list(raw_text_extracts.keys())[0]
+        raw_text = list(raw_text_extracts.values())[0]
+        split_text = [item for item_list in raw_text for item in item_list.split("\n")]
+
+        results = []
+        for required_qn in self.cleaned_sermon_discussion_qns:
+            for entry in split_text:
+                partial_ratio = fuzz.partial_ratio(required_qn, entry)
+                if required_qn in split_text:
+                    break
+                elif 90 < partial_ratio < 100:
+                    result = {
+                        "title": "Is there a typo?",
+                        "status": Status.WARNING,
+                        "comments": f"On Slide {slide_number}, Expected: '{required_qn}'. Provided: '{entry}'. Similarity score = {partial_ratio} of 100",
+                    }
+                    results.append(result)
+                    break
+            # using for-else construct that runs if no break statement is hit
+            else:
+                # a good match for the required_qn was not found
+                result: Result = {
+                    "title": "Check sermon discussion questions are as provided.",
+                    "status": Status.ERROR,
+                    "comments": f"On Slide {slide_number}, Expected: '{required_qn}'. Could not find this required question.",
+                }
+                results.append(result)
+
+        if len(results) == 0:
+            result: Result = {
+                "title": "Check sermon discussion questions are as provided.",
+                "status": Status.PASS,
+                "comments": "All sermon discussion questions are present.",
+            }
+            results.append(result)
+        return results
 
 
 if __name__ == "__main__":
-    with open("input/22.05 (10.30am) service slides.pptx", "rb") as f:
+    filename = "22.05 (10.30am) service slides.pptx"
+    with open(f"input/{filename}", "rb") as f:
         pptx = PresentationConstructor(f)
+
+    slides: list[Slide] = [slide for slide in pptx.slides]  # type: ignore
+    sermon_discussion_qns = """1. How have you been confronted with your own arrogance before God today? How have you been challenged to repent?
+2. How has our passage been a comfort if we are seeking to live for God in this anti-God world?"""
 
     cc = ContentChecker(
         selected_date="22 May 2022",
         req_order_of_service=raw_req_order_of_service_no_declaration(),
-        sermon_discussion_qns="",
-        presentations={"22.05 (10.30am) service slides.pptx": pptx},
+        sermon_discussion_qns=sermon_discussion_qns,
+        presentations={filename: pptx},
     )
     results = cc.run()

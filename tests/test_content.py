@@ -76,8 +76,8 @@ def test_check_existence_of_section_headers(
     actual = cc.check_existence_of_section_headers(section_headers)
     expected = {
         "title": "Check existence of section header slides",
-        "comments": f"Expected: >=1 section header slides. Provided: 11 section header slide(s) found.",
         "status": Status.PASS,
+        "comments": f"Expected: >=1 section header slides. Provided: 11 section header slide(s) found.",
     }
     assert expected == actual
 
@@ -128,11 +128,21 @@ def test_check_existence_of_lone_sermon_discussion_slide(
     )
     expected = {
         "title": "Check existence of sermon discussion slides.",
-        "comments": "Expected: 1 sermon discussion slide. Provided: 1 sermon discussion slide(s) found.",
         "status": Status.PASS,
+        "comments": "Expected: 1 sermon discussion slide. Provided: 1 sermon discussion slide(s) found.",
     }
     assert expected == actual
 
 
-def test_check_sermon_discussion_qns_are_as_provided():
-    pass
+def test_check_sermon_discussion_qns_are_as_provided(
+    cc: ContentChecker, sermon_discussion_slides: SlideSubset
+):
+    actual = cc.check_sermon_discussion_qns_are_as_provided(sermon_discussion_slides)
+    expected = [
+        {
+            "title": "Check sermon discussion questions are as provided.",
+            "status": Status.PASS,
+            "comments": "All sermon discussion questions are present.",
+        }
+    ]
+    assert expected == actual
