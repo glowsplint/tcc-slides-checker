@@ -1,5 +1,6 @@
 import os
 import re
+from functools import cached_property
 from pathlib import Path
 from typing import Iterable
 
@@ -14,13 +15,16 @@ from pptx.presentation import Presentation
 from pptx.slide import Slide
 from thefuzz import fuzz
 
-SlideSubset = dict[int, Slide]
-
 section_mapping = {
     "Bible Reading": "Hearing God\u2019s Word Read",
     "Sermon": "Hearing God\u2019s Word Proclaimed",
     "Discuss in groups": "Sermon Discussion",
 }
+
+SlideSubset = dict[int, Slide]
+FilteredCleanOrderOfService = list[tuple[str, str]]
+CleanOrderOfService = list[tuple[str, int, str]]
+SlideOrderOfService = dict[int, list[str]]
 
 
 def raw_req_order_of_service_no_declaration() -> str:
@@ -39,7 +43,7 @@ Dismissal		"""
 
 def get_clean_req_order_of_service(
     raw_req_order_of_service_no_declaration: str,
-) -> list[tuple[str, int, str]]:
+) -> CleanOrderOfService:
     """
     Returns the cleaned up required order of service.
 
@@ -58,8 +62,8 @@ def get_clean_req_order_of_service(
 
 
 def filter_clean_req_order_of_service(
-    clean_req_order_of_service: list[tuple[str, int, str]],
-) -> list[tuple[str, str]]:
+    clean_req_order_of_service: CleanOrderOfService,
+) -> FilteredCleanOrderOfService:
     """
     Returns the filtered clean required order of service with elements at position:
     1. Item
@@ -105,36 +109,6 @@ def get_slides_by_pattern(all_slides: Iterable[Slide], pattern: str) -> SlideSub
     return subset
 
 
-def section_headers(all_slides: Iterable[Slide]) -> SlideSubset:
-    """
-    Section header slides are slides that contain the text "order of service".
-    This includes the Welcome slide, and all other item slides (i.e. Family Confession,
-    Family Prayer etc.)
-
-    Args:
-        all_slides (Iterable[Slide]): An iterable containing all slides
-
-    Returns:
-        SlideSubset: Subset of slides with slide number (1-indexed) as keys
-    """
-    text = "order of service"
-    return get_slides_by_pattern(all_slides, text)
-
-
-def sermon_discussion_slides(all_slides: Iterable[Slide]) -> SlideSubset:
-    """
-    Sermon discussion slides are slides that contain the text "Sermon discussion questions".
-
-    Args:
-        all_slides (Iterable[Slide]): An iterable containing all slides
-
-    Returns:
-        SlideSubset: Subset of slides with slide number (1-indexed) as keys
-    """
-    text = "Sermon discussion questions"
-    return get_slides_by_pattern(all_slides, text)
-
-
 def get_raw_text_from_slides(slides: SlideSubset) -> dict[int, list[str]]:
     """
     Returns the raw text from any shapes (including text boxes) in the provided slides.
@@ -155,40 +129,6 @@ def get_raw_text_from_slides(slides: SlideSubset) -> dict[int, list[str]]:
     return result
 
 
-def slide_order_of_service(section_headers: SlideSubset) -> dict[int, list[str]]:
-    def filter_order_of_service_only(
-        texts: dict[int, list[str]]
-    ) -> dict[int, list[str]]:
-        result = {}
-        for i, item_list in texts.items():
-            for item in item_list:
-                if "order of service" in item:
-                    result[i].append(item)
-                else:
-                    result[i] = [item]
-        return result
-
-    def split_and_strip(text: str) -> list[str]:
-        """
-        Splits up raw text on newline characters and strips on both sides of the
-        resulting string.
-        """
-        split_text = re.split("\n+", text)
-        return [
-            item.strip()
-            for item in split_text
-            if len(item) and "order of service" not in item
-        ]
-
-    section_header_text = get_raw_text_from_slides(section_headers)
-    orders_of_service = filter_order_of_service_only(section_header_text)
-    return {
-        i: split_and_strip(item)
-        for i, item_list in orders_of_service.items()
-        for item in item_list
-    }
-
-
 class ContentChecker(BaseChecker):
     """
     Checks the content of the uploaded slides according to the inputs.
@@ -202,9 +142,88 @@ class ContentChecker(BaseChecker):
         presentations: dict[str, Presentation],
     ) -> None:
         self.selected_date = selected_date
-        self.req_order_of_service = req_order_of_service
+        self.raw_req_order_of_service = req_order_of_service
         self.sermon_discussion_qns = sermon_discussion_qns
         self.presentations = presentations
+
+    def section_headers(self, all_slides: Iterable[Slide]) -> SlideSubset:
+        """
+        Section header slides are slides that contain the text "order of service".
+        This includes the Welcome slide, and all other item slides (i.e. Family Confession,
+        Family Prayer etc.)
+
+        Args:
+            all_slides (Iterable[Slide]): An iterable containing all slides
+
+        Returns:
+            SlideSubset: Subset of slides with slide number (1-indexed) as keys
+        """
+        text = "order of service"
+        return get_slides_by_pattern(all_slides, text)
+
+    def sermon_discussion_slides(self, all_slides: Iterable[Slide]) -> SlideSubset:
+        """
+        Sermon discussion slides are slides that contain the text "Sermon discussion questions".
+
+        Args:
+            all_slides (Iterable[Slide]): An iterable containing all slides
+
+        Returns:
+            SlideSubset: Subset of slides with slide number (1-indexed) as keys
+        """
+        text = "Sermon discussion questions"
+        return get_slides_by_pattern(all_slides, text)
+
+    def slide_order_of_service(
+        self, section_headers: SlideSubset
+    ) -> SlideOrderOfService:
+        """
+        Returns the order of service for each slide as a list of strings values with slide number as keys.
+
+        Args:
+            section_headers (SlideSubset): Slides
+
+        Returns:
+            dict[int, list[str]]: Order of service in each slide
+        """
+
+        def filter_order_of_service_only(
+            texts: dict[int, list[str]]
+        ) -> dict[int, list[str]]:
+            result = {}
+            for i, item_list in texts.items():
+                for item in item_list:
+                    if "order of service" in item:
+                        result[i].append(item)
+                    else:
+                        result[i] = [item]
+            return result
+
+        def split_and_strip(text: str) -> list[str]:
+            """
+            Splits up raw text on newline characters and strips on both sides of the
+            resulting string.
+            """
+            split_text = re.split("\n+", text)
+            return [
+                item.strip()
+                for item in split_text
+                if len(item) and "order of service" not in item
+            ]
+
+        section_header_text = get_raw_text_from_slides(section_headers)
+        orders_of_service = filter_order_of_service_only(section_header_text)
+        return {
+            i: split_and_strip(item)
+            for i, item_list in orders_of_service.items()
+            for item in item_list
+        }
+
+    @cached_property
+    def filtered_req_order_of_service(self) -> FilteredCleanOrderOfService:
+        return filter_clean_req_order_of_service(
+            get_clean_req_order_of_service(self.raw_req_order_of_service)
+        )
 
     def run(self) -> list[FileResults]:
         file_results = []
@@ -225,24 +244,25 @@ class ContentChecker(BaseChecker):
             list[Result]: List of Result dictionaries
         """
         slides: list[Slide] = [slide for slide in pptx.slides]  # type: ignore
-        clean_req_order_of_service = filter_clean_req_order_of_service(
-            get_clean_req_order_of_service(self.req_order_of_service)
-        )
-        result = [
+        results = [
             self.check_existence_of_section_headers(
-                section_headers=section_headers(slides)
+                section_headers=self.section_headers(slides)
             ),
             *self.check_section_headers_have_correct_order(
-                req_order_of_service=clean_req_order_of_service,
-                slide_order_of_service=slide_order_of_service(section_headers(slides)),
+                slide_order_of_service=self.slide_order_of_service(
+                    self.section_headers(slides)
+                ),
             ),
             *self.check_all_dates_are_as_provided(
                 date=self.selected_date, slides=slides
             ),
+            self.check_existence_of_lone_sermon_discussion_slide(
+                self.sermon_discussion_slides(slides)
+            ),
         ]
-        return self.sorted(result)
+        return self.sorted(results)
 
-    def sorted(self, result: list[Result]) -> list[Result]:
+    def sorted(self, results: list[Result]) -> list[Result]:
         """
         Sorts results with the following precedence: Errors, Warnings, Passes.
 
@@ -252,7 +272,7 @@ class ContentChecker(BaseChecker):
         Returns:
             list[Result]: Sorted list of results
         """
-        return sorted(result, key=lambda x: x["status"], reverse=True)
+        return sorted(results, key=lambda x: x["status"], reverse=True)
 
     def check_existence_of_section_headers(
         self, section_headers: SlideSubset
@@ -268,14 +288,13 @@ class ContentChecker(BaseChecker):
         """
         result: Result = {
             "title": "Check existence of section header slides",
-            "comments": f"Expected: >=1 section header slides. Provided: {len(section_headers)} section header slides found.",
             "status": Status.PASS if len(section_headers) > 0 else Status.ERROR,
+            "comments": f"Expected: >=1 section header slides. Provided: {len(section_headers)} section header slide(s) found.",
         }
         return result
 
     def check_section_headers_have_correct_order(
         self,
-        req_order_of_service: list[tuple[str, str]],
         slide_order_of_service: dict[int, list[str]],
     ) -> list[Result]:
         """
@@ -287,7 +306,6 @@ class ContentChecker(BaseChecker):
         These slides will usually have the order of service in grey on the right side.
 
         Args:
-            req_order_of_service (list[tuple[str, str]]): Required order of service
             slide_order_of_service (dict[int, list[str]]): Order of services from slides
 
         Returns:
@@ -305,7 +323,7 @@ class ContentChecker(BaseChecker):
             index = 0
             for entry in slide_text:
 
-                title, comments = req_order_of_service[index]
+                title, comments = self.filtered_req_order_of_service[index]
                 title = title.replace("\u2018", "\u2019")
                 required_item = f"{title} \u2013 {comments}"
                 is_commented_item = re.match(items_with_comments, entry)
@@ -326,16 +344,16 @@ class ContentChecker(BaseChecker):
                     else:
                         result = {
                             "title": "Check section headers are in the correct order",
-                            "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. Similarity score = {partial_ratio} of 100",
                             "status": Status.ERROR,
+                            "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. Similarity score = {partial_ratio} of 100",
                         }
                     if result not in results:
                         results.append(result)
                 elif "\u2018" in entry:
                     result = {
                         "title": "Is there a typo?",
-                        "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. The use of the unicode character U+2018 (\u2018) is triggering this warning; replace this character with U+2019 (\u2019) or a standard single quote (') to resolve this error. Similarity score = {partial_ratio} of 100",
                         "status": Status.WARNING,
+                        "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. The use of the unicode character U+2018 (\u2018) is triggering this warning; replace this character with U+2019 (\u2019) or a standard single quote (') to resolve this error. Similarity score = {partial_ratio} of 100",
                     }
                     results.append(result)
                     index += 1
@@ -457,10 +475,10 @@ class ContentChecker(BaseChecker):
         """
         result: Result = {
             "title": "Check existence of sermon discussion slides.",
-            "comments": f"Expected: 1 sermon discussion slide. Provided: {len(sermon_discussion_slides)} sermon discussion slides found.",
             "status": Status.PASS
             if len(sermon_discussion_slides) == 1
             else Status.ERROR,
+            "comments": f"Expected: 1 sermon discussion slide. Provided: {len(sermon_discussion_slides)} sermon discussion slide(s) found.",
         }
         return result
 
@@ -476,8 +494,6 @@ class ContentChecker(BaseChecker):
         Returns:
             list[Result]: List of results for this test
         """
-        results = []
-
         raise NotImplementedError
 
 
