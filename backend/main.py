@@ -1,6 +1,5 @@
 import io
 import os
-import time
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, UploadFile
@@ -8,10 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pptx import Presentation
-from pydantic import BaseModel
 
 from backend.metadata import metadata
-from backend.processing.checker.content import ContentChecker, Result
+from backend.processing.checker.content import MultiContentChecker
 from backend.processing.result import FileResults
 
 DEVELOPMENT_MODE = os.getenv("DEVELOPMENT_MODE")
@@ -78,10 +76,10 @@ async def upload_handler(
             bytes_io = io.BytesIO(f.read())
             presentations[file.filename] = Presentation(pptx=bytes_io)
 
-    cc = ContentChecker(
+    mcc = MultiContentChecker(
         selected_date=selected_date,
         req_order_of_service=req_order_of_service,
         sermon_discussion_qns=sermon_discussion_qns,
         presentations=presentations,
     )
-    return cc.run()
+    return mcc.run()

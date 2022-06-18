@@ -8,7 +8,7 @@ if __name__ == "__main__":
     if Path(os.getcwd()).parent.name == "processing":
         os.chdir("../../..")
 
-from backend.processing.checker.base import BaseChecker
+from backend.processing.checker.base import BaseChecker, BaseMultiChecker
 from backend.processing.result import FileResults, Result, Status
 from pptx import Presentation as PresentationConstructor
 from pptx.presentation import Presentation
@@ -141,17 +141,24 @@ class ContentChecker(BaseChecker):
 
     def __init__(
         self,
-        selected_date: str,
+        file_path: str,
+        presentation: Presentation,
         req_order_of_service: str,
+        selected_date: str,
         sermon_discussion_qns: str,
-        presentations: dict[str, Presentation],
     ) -> None:
-        self.selected_date = selected_date
+        self.file_name = file_path
+        self.presentation = presentation
         self.raw_req_order_of_service = req_order_of_service
+        self.selected_date = selected_date
         self.sermon_discussion_qns = sermon_discussion_qns
-        self.presentations = presentations
 
-    def section_headers(self, all_slides: Iterable[Slide]) -> SlideSubset:
+    @cached_property
+    def slides(self) -> list[Slide]:
+        return [slide for slide in self.presentation.slides]  # type: ignore
+
+    @cached_property
+    def section_headers(self) -> SlideSubset:
         """
         Section header slides are slides that contain the text "order of service".
         This includes the Welcome slide, and all other item slides (i.e. Family Confession,
@@ -164,9 +171,10 @@ class ContentChecker(BaseChecker):
             SlideSubset: Subset of slides with slide number (1-indexed) as keys
         """
         text = "order of service"
-        return get_slides_by_pattern(all_slides, text)
+        return get_slides_by_pattern(self.slides, text)
 
-    def sermon_discussion_slides(self, all_slides: Iterable[Slide]) -> SlideSubset:
+    @cached_property
+    def sermon_discussion_slides(self) -> SlideSubset:
         """
         Sermon discussion slides are slides that contain the text "Sermon discussion questions".
 
@@ -177,11 +185,10 @@ class ContentChecker(BaseChecker):
             SlideSubset: Subset of slides with slide number (1-indexed) as keys
         """
         text = "Sermon discussion questions"
-        return get_slides_by_pattern(all_slides, text)
+        return get_slides_by_pattern(self.slides, text)
 
-    def slide_order_of_service(
-        self, section_headers: SlideSubset
-    ) -> SlideOrderOfService:
+    @cached_property
+    def slide_order_of_service(self) -> SlideOrderOfService:
         """
         Returns the order of service for each slide as a list of strings values with slide number as keys.
 
@@ -216,7 +223,7 @@ class ContentChecker(BaseChecker):
                 if len(item) and "order of service" not in item
             ]
 
-        section_header_text = get_raw_text_extracts_from_slides(section_headers)
+        section_header_text = get_raw_text_extracts_from_slides(self.section_headers)
         orders_of_service = filter_order_of_service_only(section_header_text)
         return {
             i: split_and_strip(item)
@@ -234,15 +241,7 @@ class ContentChecker(BaseChecker):
     def cleaned_sermon_discussion_qns(self) -> list[str]:
         return get_clean_sermon_discussion_qns(self.sermon_discussion_qns)
 
-    def run(self) -> list[FileResults]:
-        file_results = []
-        for name, pptx in self.presentations.items():
-            file_results.append(
-                {"filename": name, "results": self.run_single(pptx=pptx)}
-            )
-        return file_results
-
-    def run_single(self, pptx: Presentation) -> list[Result]:
+    def run(self) -> list[Result]:
         """
         Runs all the checks within the ContentChecker for a single Presentation instance.
 
@@ -252,25 +251,12 @@ class ContentChecker(BaseChecker):
         Returns:
             list[Result]: List of Result dictionaries
         """
-        slides: list[Slide] = [slide for slide in pptx.slides]  # type: ignore
         results = [
-            self.check_existence_of_section_headers(
-                section_headers=self.section_headers(slides)
-            ),
-            *self.check_section_headers_have_correct_order(
-                slide_order_of_service=self.slide_order_of_service(
-                    self.section_headers(slides)
-                ),
-            ),
-            *self.check_all_dates_are_as_provided(
-                date=self.selected_date, slides=slides
-            ),
-            self.check_existence_of_lone_sermon_discussion_slide(
-                self.sermon_discussion_slides(slides)
-            ),
-            *self.check_sermon_discussion_qns_are_as_provided(
-                self.sermon_discussion_slides(slides)
-            ),
+            self.check_existence_of_section_headers(),
+            *self.check_section_headers_have_correct_order(),
+            *self.check_all_dates_are_as_provided(),
+            self.check_existence_of_lone_sermon_discussion_slide(),
+            *self.check_sermon_discussion_qns_are_as_provided(),
         ]
         return self.sorted(results)
 
@@ -286,9 +272,7 @@ class ContentChecker(BaseChecker):
         """
         return sorted(results, key=lambda x: x["status"], reverse=True)
 
-    def check_existence_of_section_headers(
-        self, section_headers: SlideSubset
-    ) -> Result:
+    def check_existence_of_section_headers(self) -> Result:
         """
         Test that there exists at least 1 section header slide in the presentation.
 
@@ -300,14 +284,13 @@ class ContentChecker(BaseChecker):
         """
         result: Result = {
             "title": "Check existence of section header slides",
-            "status": Status.PASS if len(section_headers) > 0 else Status.ERROR,
-            "comments": f"Expected: >=1 section header slides. Provided: {len(section_headers)} section header slide(s) found.",
+            "status": Status.PASS if len(self.section_headers) > 0 else Status.ERROR,
+            "comments": f"Expected: >=1 section header slides. Provided: {len(self.section_headers)} section header slide(s) found.",
         }
         return result
 
     def check_section_headers_have_correct_order(
         self,
-        slide_order_of_service: dict[int, list[str]],
     ) -> list[Result]:
         """
         Test all section headers have the correct order of service by checking that the
@@ -331,7 +314,7 @@ class ContentChecker(BaseChecker):
             "(Opening Song|Closing Song|Hearing God(\u2018|\u2019|')s Word Read)"
         )
 
-        for i, slide_text in slide_order_of_service.items():
+        for i, slide_text in self.slide_order_of_service.items():
             index = 0
             for entry in slide_text:
 
@@ -348,7 +331,7 @@ class ContentChecker(BaseChecker):
                         continue
                     elif 90 < partial_ratio < 100:
                         result = {
-                            "title": "Is there a typo?",
+                            "title": "Check section headers are in the correct order: Is there a typo?",
                             "status": Status.WARNING,
                             "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. Similarity score = {partial_ratio} of 100",
                         }
@@ -363,7 +346,7 @@ class ContentChecker(BaseChecker):
                         results.append(result)
                 elif "\u2018" in entry:
                     result = {
-                        "title": "Is there a typo?",
+                        "title": "Check section headers are in the correct order: Is there a typo?",
                         "status": Status.WARNING,
                         "comments": f"On Slide {i}, Expected: '{required_item}'. Provided: '{entry}'. The use of the unicode character U+2018 (\u2018) is triggering this warning; replace this character with U+2019 (\u2019) or a standard single quote (') to resolve this error. Similarity score = {partial_ratio} of 100",
                     }
@@ -429,9 +412,7 @@ class ContentChecker(BaseChecker):
         # 2. Check that the title is not present (i.e. none of the text boxes contain the song title exclusively)
         raise NotImplementedError
 
-    def check_all_dates_are_as_provided(
-        self, date: str, slides: Iterable[Slide]
-    ) -> list[Result]:
+    def check_all_dates_are_as_provided(self) -> list[Result]:
         """
         Test all dates that appear in the presentation are equal to the date of Sunday service.
 
@@ -448,20 +429,20 @@ class ContentChecker(BaseChecker):
             list[Result]: List of Result dictionaries
         """
         date_pattern = "\\d+[\\s-][A-Za-z]+[\\s-]\\d+"
-        slides_with_dates = get_slides_by_pattern(slides, date_pattern)
+        slides_with_dates = get_slides_by_pattern(self.slides, date_pattern)
         results = []
         for i, item_list in get_raw_text_extracts_from_slides(
             slides_with_dates
         ).items():
             for item in item_list:
-                partial_ratio = fuzz.partial_ratio(item, date)
+                partial_ratio = fuzz.partial_ratio(item, self.selected_date)
                 if re.match(date_pattern, item) and item.replace(
                     "_", " "
-                ) != date.replace("_", " "):
+                ) != self.selected_date.replace("_", " "):
                     result = {
                         "title": "Check all dates that appear in the slides are the same as the date of Sunday service.",
                         "status": Status.ERROR,
-                        "comments": f"On slide {i}, Expected: '{date}'. Provided: '{item}'. Similarity score = {partial_ratio} of 100",
+                        "comments": f"On slide {i}, Expected: '{self.selected_date}'. Provided: '{item}'. Similarity score = {partial_ratio} of 100",
                     }
                     results.append(result)
 
@@ -475,9 +456,7 @@ class ContentChecker(BaseChecker):
 
         return results
 
-    def check_existence_of_lone_sermon_discussion_slide(
-        self, sermon_discussion_slides: SlideSubset
-    ) -> Result:
+    def check_existence_of_lone_sermon_discussion_slide(self) -> Result:
         """
         Test that there exists exactly 1 sermon discussion slide in the presentation.
 
@@ -490,15 +469,13 @@ class ContentChecker(BaseChecker):
         result: Result = {
             "title": "Check existence of sermon discussion slides.",
             "status": Status.PASS
-            if len(sermon_discussion_slides) == 1
+            if len(self.sermon_discussion_slides) == 1
             else Status.ERROR,
-            "comments": f"Expected: 1 sermon discussion slide. Provided: {len(sermon_discussion_slides)} sermon discussion slide(s) found.",
+            "comments": f"Expected: 1 sermon discussion slide. Provided: {len(self.sermon_discussion_slides)} sermon discussion slide(s) found.",
         }
         return result
 
-    def check_sermon_discussion_qns_are_as_provided(
-        self, sermon_discussion_slides: SlideSubset
-    ) -> list[Result]:
+    def check_sermon_discussion_qns_are_as_provided(self) -> list[Result]:
         """
         Test that the required questions appear in the sermon discussion slide.
         Ignores numbering (i.e. 1. and 2.) and checks sentences directly.
@@ -512,7 +489,9 @@ class ContentChecker(BaseChecker):
         # consider using ndiff
         # 1. Get the sermon discussion slides
         # 2. Check questions are in these slides
-        raw_text_extracts = get_raw_text_extracts_from_slides(sermon_discussion_slides)
+        raw_text_extracts = get_raw_text_extracts_from_slides(
+            self.sermon_discussion_slides
+        )
         slide_number = list(raw_text_extracts.keys())[0]
         raw_text = list(raw_text_extracts.values())[0]
         split_text = [item for item_list in raw_text for item in item_list.split("\n")]
@@ -525,7 +504,7 @@ class ContentChecker(BaseChecker):
                     break
                 elif 90 < partial_ratio < 100:
                     result = {
-                        "title": "Is there a typo?",
+                        "title": "Check sermon discussion questions are as provided: Is there a typo?",
                         "status": Status.WARNING,
                         "comments": f"On Slide {slide_number}, Expected: '{required_qn}'. Provided: '{entry}'. Similarity score = {partial_ratio} of 100",
                     }
@@ -551,19 +530,66 @@ class ContentChecker(BaseChecker):
         return results
 
 
+class MultiContentChecker(BaseMultiChecker):
+    """
+    Extends ContentChecker for multiple presentation files.
+    """
+
+    def __init__(
+        self,
+        presentations: dict[str, Presentation],
+        req_order_of_service: str,
+        selected_date: str,
+        sermon_discussion_qns: str,
+    ) -> None:
+        self.presentations = presentations
+        self.req_order_of_service = req_order_of_service
+        self.selected_date = selected_date
+        self.sermon_discussion_qns = sermon_discussion_qns
+
+    @cached_property
+    def checkers(self) -> dict[str, ContentChecker]:
+        return {
+            file_name: ContentChecker(
+                file_path=file_name,
+                presentation=pptx,
+                req_order_of_service=self.req_order_of_service,
+                selected_date=self.selected_date,
+                sermon_discussion_qns=self.sermon_discussion_qns,
+            )
+            for file_name, pptx in self.presentations.items()
+        }
+
+    def run(self) -> list[FileResults]:
+        file_results = []
+        for file_name, checker in self.checkers.items():
+            file_results.append({"filename": file_name, "results": checker.run()})
+        return file_results
+
+
 if __name__ == "__main__":
     filename = "22.05 (10.30am) service slides.pptx"
+    sermon_discussion_qns = """1. How have you been confronted with your own arrogance before God today? How have you been challenged to repent?
+2. How has our passage been a comfort if we are seeking to live for God in this anti-God world?"""
+    selected_date = "22 May 2022"
+
     with open(f"input/{filename}", "rb") as f:
         pptx = PresentationConstructor(f)
 
     slides: list[Slide] = [slide for slide in pptx.slides]  # type: ignore
-    sermon_discussion_qns = """1. How have you been confronted with your own arrogance before God today? How have you been challenged to repent?
-2. How has our passage been a comfort if we are seeking to live for God in this anti-God world?"""
-
     cc = ContentChecker(
-        selected_date="22 May 2022",
+        selected_date=selected_date,
         req_order_of_service=raw_req_order_of_service_no_declaration(),
         sermon_discussion_qns=sermon_discussion_qns,
-        presentations={filename: pptx},
+        file_path=filename,
+        presentation=pptx,
     )
-    results = cc.run()
+    cc_results = cc.run()
+
+    mcc = MultiContentChecker(
+        presentations={filename: pptx},
+        req_order_of_service=raw_req_order_of_service_no_declaration(),
+        selected_date=selected_date,
+        sermon_discussion_qns=sermon_discussion_qns,
+    )
+    mcc_results = mcc.run()
