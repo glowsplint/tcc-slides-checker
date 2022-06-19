@@ -164,9 +164,6 @@ class ContentChecker(BaseChecker):
         This includes the Welcome slide, and all other item slides (i.e. Family Confession,
         Family Prayer etc.)
 
-        Args:
-            all_slides (Iterable[Slide]): An iterable containing all slides
-
         Returns:
             SlideSubset: Subset of slides with slide number (1-indexed) as keys
         """
@@ -178,9 +175,6 @@ class ContentChecker(BaseChecker):
         """
         Sermon discussion slides are slides that contain the text "Sermon discussion questions".
 
-        Args:
-            all_slides (Iterable[Slide]): An iterable containing all slides
-
         Returns:
             SlideSubset: Subset of slides with slide number (1-indexed) as keys
         """
@@ -190,13 +184,11 @@ class ContentChecker(BaseChecker):
     @cached_property
     def slide_order_of_service(self) -> SlideOrderOfService:
         """
-        Returns the order of service for each slide as a list of strings values with slide number as keys.
-
-        Args:
-            section_headers (SlideSubset): Slides
+        Returns the order of service for each slide as a dictionary where the keys are slide number,
+            and the values are a list of strings.
 
         Returns:
-            dict[int, list[str]]: Order of service in each slide
+            SlideOrderOfService: Order of service in each slide
         """
 
         def filter_order_of_service_only(
@@ -245,9 +237,6 @@ class ContentChecker(BaseChecker):
         """
         Runs all the checks within the ContentChecker for a single Presentation instance.
 
-        Args:
-            pptx (Presentation): Presentation instance
-
         Returns:
             list[Result]: List of Result dictionaries
         """
@@ -265,7 +254,7 @@ class ContentChecker(BaseChecker):
         Sorts results with the following precedence: Errors, Warnings, Passes.
 
         Args:
-            result (list[Result]): Unsorted list of results
+            results (list[Result]): Unsorted list of results
 
         Returns:
             list[Result]: Sorted list of results
@@ -275,9 +264,6 @@ class ContentChecker(BaseChecker):
     def check_existence_of_section_headers(self) -> Result:
         """
         Test that there exists at least 1 section header slide in the presentation.
-
-        Args:
-            section_headers (SlideSubset): Subset of slides that are section headers
 
         Returns:
             Result: Result of this test
@@ -299,9 +285,6 @@ class ContentChecker(BaseChecker):
 
         Section headers are the slides that separate each section of the service.
         These slides will usually have the order of service in grey on the right side.
-
-        Args:
-            slide_order_of_service (dict[int, list[str]]): Order of services from slides
 
         Returns:
             list[Result]: List of results for this test
@@ -366,44 +349,27 @@ class ContentChecker(BaseChecker):
             results.append(result)
         return results
 
-    def check_family_confession_content_matches_number(
-        self, req_order_of_service: tuple[str, str]
-    ) -> list[Result]:
+    def check_family_confession_content_matches_number(self) -> list[Result]:
         """
         Test family confession has the correct contents by checking that the words on the
         slide match the required content (usually a #number) specified in the order of
         service.
 
         Family Confession is an item in the order of service.
+
+        Returns:
+            list[Result]: List of Result dictionaries
         """
         # 1. Identify the family confession slides
         # 2. Check that there is a text box on the page that contains the family confession
         # 3. Check that it matches the number
         raise NotImplementedError
 
-    def check_family_declaration_content_matches_number(
-        self,
-        req_order_of_service: tuple[str, str],
-    ) -> list[Result]:
-        """
-        Test that family declaration (if present) has the correct contents by checking that
-        the words on the slide match the required content (usually a #number) specified in
-        the order of service.
-
-        Family Declaration is an optional item in the order of service.
-        """
-        raise NotImplementedError
-
-    def check_all_lyric_slides_have_no_title(
-        self, req_order_of_service: tuple[str, str]
-    ) -> list[Result]:
+    def check_all_lyric_slides_have_no_title(self) -> list[Result]:
         """
         Test all lyric slides do not contain a title.
 
         Lyric slides are slides for the opening and closing song.
-
-        Args:
-            req_order_of_service (tuple[str, str]): Required order of service
 
         Returns:
             list[Result]: List of Result dictionaries
@@ -421,9 +387,6 @@ class ContentChecker(BaseChecker):
         Date patterns:
             "01-Jan-2022"
             "01 Jan 2022"
-
-        Args:
-            date (str): Date of Sunday service
 
         Returns:
             list[Result]: List of Result dictionaries
@@ -460,9 +423,6 @@ class ContentChecker(BaseChecker):
         """
         Test that there exists exactly 1 sermon discussion slide in the presentation.
 
-        Args:
-            sermon_discussion_slides (SlideSubset): Subset of slides that are sermon discussion slides
-
         Returns:
             Result: Result of this test
         """
@@ -480,13 +440,9 @@ class ContentChecker(BaseChecker):
         Test that the required questions appear in the sermon discussion slide.
         Ignores numbering (i.e. 1. and 2.) and checks sentences directly.
 
-        Args:
-            sermon_discussion_slides (SlideSubset): Sermon discussion slides
-
         Returns:
             list[Result]: List of Result dictionaries
         """
-        # consider using ndiff
         # 1. Get the sermon discussion slides
         # 2. Check questions are in these slides
         raw_text_extracts = get_raw_text_extracts_from_slides(

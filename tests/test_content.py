@@ -108,10 +108,6 @@ def test_check_family_confession_content_matches_number():
     pass
 
 
-def test_check_family_declaration_content_matches_number():
-    pass
-
-
 def test_check_all_lyric_slides_have_no_title():
     pass
 
