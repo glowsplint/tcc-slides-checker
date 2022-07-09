@@ -4,6 +4,8 @@ from functools import cached_property
 from pathlib import Path
 from typing import Iterable
 
+from dateutil import parser
+
 if __name__ == "__main__":
     if Path(os.getcwd()).parent.name == "processing":
         os.chdir("../../..")
@@ -198,6 +200,8 @@ class ContentChecker(BaseChecker):
             for i, item_list in texts.items():
                 for item in item_list:
                     if "order of service" in item:
+                        if i not in result:
+                            result[i] = []
                         result[i].append(item)
                     else:
                         result[i] = [item]
@@ -398,16 +402,18 @@ class ContentChecker(BaseChecker):
             slides_with_dates
         ).items():
             for item in item_list:
-                partial_ratio = fuzz.partial_ratio(item, self.selected_date)
-                if re.match(date_pattern, item) and item.replace(
-                    "_", " "
-                ) != self.selected_date.replace("_", " "):
-                    result = {
-                        "title": "Check all dates that appear in the slides are the same as the date of Sunday service.",
-                        "status": Status.ERROR,
-                        "comments": f"On slide {i}, Expected: '{self.selected_date}'. Provided: '{item}'. Similarity score = {partial_ratio} of 100",
-                    }
-                    results.append(result)
+                try:
+                    if parser.parse(item) != parser.parse(self.selected_date):
+                        partial_ratio = fuzz.partial_ratio(item, self.selected_date)
+                        result = {
+                            "title": "Check all dates that appear in the slides are the same as the date of Sunday service.",
+                            "status": Status.ERROR,
+                            "comments": f"On slide {i}, Expected: '{self.selected_date}'. Provided: '{item}'. Similarity score = {partial_ratio} of 100",
+                        }
+                        results.append(result)
+                except parser.ParserError:
+                    # To ignore non-date strings
+                    pass
 
         if len(results) == 0:
             result = {

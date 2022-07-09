@@ -10,6 +10,7 @@ fastapi = "*"
 uvicorn = "*"
 python-multipart = "*"
 thefuzz = "*"
+python-dateutil = "*"
 
 [dev-packages]
 black = "*"
