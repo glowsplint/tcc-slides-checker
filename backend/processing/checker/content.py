@@ -31,13 +31,16 @@ SlideSubset = dict[int, Slide]
 
 def raw_req_order_of_service_no_declaration() -> str:
     return """Opening Words	1	
-Opening Song	4	Behold Our God
-Family Confession	2	#11 Confession of Sin (Slide 17 & 18)
-Family Prayer	4	Refer to Prayer Points Tab in this document (Usually updated by Thu)
-Family Business	5	Refer to Family Business Tab
-Bible Reading 	4	Daniel 5
-Sermon	30	Preacher: Denesh
-Closing Song	4	Only a Holy God
+Family Confession	1	Confession #5 (Slide 8) - no need to include the "God's Forgiveness Declared" 
+Opening Song	4	O, For A Thousand Tongues To Sing / Joyful, Joyful
+Family Prayer	3	Refer to Prayer Points Tab (usually updated by Thu) 
+Family Business	8	Refer to Family Business Tab (usually updated by Wed EOD) includes interview with Aaron Tang
+Kids Song	4	Jesus Came To Earth
+Dismissal to Creche	2	
+Pre-Sermon Song	4	Bless The Lord, O My Soul
+Bible Reading	3	Jonah 3
+Sermon	30	
+Closing Song	4	This Life I Live
 Closing Words	1	
 Discuss in groups	5	
 Dismissal		"""
@@ -129,6 +132,8 @@ def get_raw_text_extracts_from_slides(slides: SlideSubset) -> dict[int, list[str
     result = {}
     for i, slide in slides.items():
         for shape in [*slide.shapes, *slide.slide_layout.shapes]:  # type: ignore
+            if not hasattr(shape, "text_frame"):
+                continue
             if i in result:
                 result[i].append(shape.text_frame.text)
             else:
@@ -297,9 +302,7 @@ class ContentChecker(BaseChecker):
         # 2. Extract the text from the slide
         # 3. Check that the order of service from the text in the slides is correct
         results: list[Result] = []
-        items_with_comments = (
-            "(Opening Song|Closing Song|Hearing God(\u2018|\u2019|')s Word Read)"
-        )
+        items_with_comments = "(Opening Song|Kids Song|Pre-Sermon Song|Closing Song|Hearing God(\u2018|\u2019|')s Word Read)"
 
         for i, slide_text in self.slide_order_of_service.items():
             index = 0
@@ -530,10 +533,10 @@ class MultiContentChecker(BaseMultiChecker):
 
 
 if __name__ == "__main__":
-    filename = "22.05 (10.30am) service slides.pptx"
-    sermon_discussion_qns = """1. How have you been confronted with your own arrogance before God today? How have you been challenged to repent?
-2. How has our passage been a comfort if we are seeking to live for God in this anti-God world?"""
-    selected_date = "22 May 2022"
+    filename = "31.07 (9am, 1030am, 12pm) service slides.pptm"
+    sermon_discussion_qns = """1. How has this passage given you greater confidence that Salvation belongs to the LORD? How will that impact the way you think about mission? 
+2. How has this passage challenged you on what genuine repentance looks like? What will that practically look like for you?"""
+    selected_date = "31 Jul 2022"
 
     with open(f"input/{filename}", "rb") as f:
         pptx = PresentationConstructor(f)

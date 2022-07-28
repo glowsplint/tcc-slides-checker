@@ -218,8 +218,10 @@ const props = (settings: Settings, setSettings: SetSettings) => {
   return {
     name: "file",
     multiple: true,
-    accept:
+    accept: [
       "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "application/vnd.ms-powerpoint.presentation.macroEnabled.12",
+    ],
     beforeUpload: (_: File, fileList: RcFile[]) => {
       setSettings((previous) => {
         return { ...previous, files: { value: fileList, error: false } };
